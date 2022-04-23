@@ -8,7 +8,7 @@ class Game:
 		# general setup
 		pygame.init()
 		self.screen = pygame.display.set_mode((WIDTH * 2, HEIGTH))
-		pygame.display.set_caption('UAV')
+		pygame.display.set_caption('Small game')
 		self.clock = pygame.time.Clock()
 
 		self.level = Level()
