@@ -44,6 +44,9 @@ WORLD_MAP = [
 ['x','x','x','x','x','x','x','x','x','x','x','x','x','x','x','x','x','x','x','x'],
 ]
 
+TILE_V = len(WORLD_MAP)
+TILE_H = len(WORLD_MAP[0])
+
 world_map = {}
 for i, row in enumerate(WORLD_MAP):
     for j, char in enumerate(row):
@@ -52,3 +55,7 @@ for i, row in enumerate(WORLD_MAP):
                 world_map[(i * TILESIZE, j * TILESIZE)] = 'x'
             elif char == '2':
                 world_map[(i * TILESIZE, j * TILESIZE)] = '2'
+
+MAX_MEMORY = 100000
+LR = 0.001
+BATCH_SIZE = 1000
