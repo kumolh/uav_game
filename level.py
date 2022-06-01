@@ -2,9 +2,11 @@ import pygame
 from settings import *
 from tile import Tile
 from player import Player
+from ai_player import *
 from debug import debug
 import numpy as np
 from zombie import Zombie
+from Helper import plot
 
 class Level:
     def __init__(self):
@@ -15,31 +17,41 @@ class Level:
         # sprite group setup
         self.visible_sprites = YSortCameraGroup()
         self.obstacle_sprites = pygame.sprite.Group()
-
         # sprite setup
         self.create_map()
 
     def create_map(self):
+        """
+
+        """
         for row_index,row in enumerate(WORLD_MAP):
             for col_index, col in enumerate(row):
                 x = col_index * TILESIZE
                 y = row_index * TILESIZE
                 if col == 'x':
-                    Tile((x,y),[self.visible_sprites,self.obstacle_sprites])
+                    Tile((x,y),[self.visible_sprites, self.obstacle_sprites])
                 if col == 'p':
+                    # self.player = AI_Player((x, y), [self.visible_sprites], self.obstacle_sprites)
                     self.player = Player((x, y), [self.visible_sprites], self.obstacle_sprites)
                 if col == 'z':
                     self.zombie = Zombie((x, y), [self.visible_sprites], self.obstacle_sprites)
+        self.player.add_target(self.zombie)
 
     def run(self):
         # update and draw the game
+        # drawing background
         self.visible_sprites.background(self.player.front)
         self.visible_sprites.custom_draw(self.player)
+        state = self.visible_sprites.get_state(self.player, self.zombie)
+        move = self.player.input()
+        self.player.move(self.player.speed)
+        self.visible_sprites.reflect(self.player, self.zombie, state, move)
         self.frontground()
-        self.visible_sprites.update()
+        # self.visible_sprites.update()
     
     def frontground(self):
         self.zombie.draw_sprites(self.player)
+
 
 
 class YSortCameraGroup(pygame.sprite.Group):
@@ -69,7 +81,7 @@ class YSortCameraGroup(pygame.sprite.Group):
             if 0 <= sprite.rect.right - self.offset.x and sprite.rect.left - self.offset.x <= WIDTH:
                 self.display_surface.blit(sprite.image, offset_pos)
                 # self.display_surface.blit(textsurface, offset_pos)
-        
+
         # 3D background
         height, width = self.textures['S'].get_height(), self.textures['S'].get_width()
         offset = int(angle / 360 * width)
@@ -81,56 +93,86 @@ class YSortCameraGroup(pygame.sprite.Group):
         pygame.draw.rect(self.display_surface, (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
 
 
-    def ray_casting(self, player):
-        # walls = []
-        ox, oy = player.hitbox.centerx, player.hitbox.centery
-        xm, ym = (ox // TILESIZE) * TILESIZE, (oy // TILESIZE) * TILESIZE
-        cur_angle = np.deg2rad(player.front + 90) - HALF_FOV
-        for ray in range(NUM_RAYS):
-            sin_a = math.sin(cur_angle)
-            cos_a = math.cos(cur_angle)
-            sin_a = sin_a if sin_a else 0.000001
-            cos_a = cos_a if cos_a else 0.000001
-            # verticals
-            texture_v = 'x'
-            (x, dx) = (xm + TILESIZE, 1) if cos_a >= 0 else (xm, -1)
-            for _ in range(0, WIDTH, TILESIZE):
-                depth_v = (x - ox) / cos_a
-                yv = oy + depth_v * sin_a
-                tile_v = self.mapping(x + dx, yv)
-                if tile_v in world_map:
-                    texture_v = world_map[tile_v]
-                    break
-                x += dx * TILESIZE
+    def ray_casting(self, player, rad):
+        # return the distance that the ray can go
+        xo = 0
+        yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
+        # check vertical
+        dof = 0
+        disV = 10000
+        tan = np.tan(rad)
+        if np.cos(rad) > 0.001: # looking right
+            rx = int(player.rect.centerx // TILESIZE) * TILESIZE + TILESIZE 
+            ry = (player.rect.centerx - rx) * tan + player.rect.centery 
+            xo = TILESIZE
+            yo = - xo * tan
+        elif np.cos(rad) < -0.001:
+            rx = int(player.rect.centerx // TILESIZE) * TILESIZE 
+            ry = (player.rect.centerx - rx) * tan + player.rect.centery 
+            xo = -TILESIZE
+            yo = - xo * tan
+        else:
+            dof = DOF
+            yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
+            rx = player.rect.centerx 
+            ry = player.rect.centery
+            
+        while dof < DOF:
+            mx = int(rx // TILESIZE) if np.cos(rad) > 0.001 else int(rx // TILESIZE) - 1
+            my = int(ry // TILESIZE) if np.sin(rad) > 0.001 else int(ry // TILESIZE) - 1
+            if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
+                dof = DOF
+                disV = np.cos(rad) * (rx - player.rect.centerx) - np.sin(rad) * (ry - player.rect.centery)
+            else:
+                rx += xo
+                ry += yo
+                dof += 1
+        vx, vy = rx - self.offset.x, ry - self.offset.y
+        offset = ry
+        # check horizontal
+        dof = 0
+        disH = 10000
+        tan = 1.0/ tan if tan != 0 else 1 << 20
+        if np.sin(rad) > 0.001: # looking up
+            ry = int(player.rect.centery / TILESIZE) * TILESIZE
+            rx = (player.rect.centery - ry) * tan + player.rect.centerx 
+            yo = - TILESIZE
+            xo = - yo * tan
+        elif np.sin(rad) < -0.001:
+            ry = int(player.rect.centery / TILESIZE) * TILESIZE + TILESIZE 
+            rx = (player.rect.centery - ry) * tan + player.rect.centerx 
+            yo = TILESIZE
+            xo = - yo * tan
+        else:
+            dof = DOF
+            yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
+            rx = player.rect.centerx
+            ry = player.rect.centery
+            
+        while dof < DOF:
+            mx = int(rx / TILESIZE) #if np.sin(rad) < -0.001 else int(rx / TILESIZE) + 1
+            my = int(ry / TILESIZE) if np.sin(rad) < -0.001 else int(ry / TILESIZE) - 1
+            
+            if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
+                # print(mx, my)
+                dof = DOF
+                disH = np.cos(rad) * (rx - player.rect.centerx) - np.sin(rad) * (ry - player.rect.centery)
+            else:
+                rx += xo
+                ry += yo
+                dof += 1
+                
+        if disH < disV:
+            vx, vy = rx - self.offset.x, ry - self.offset.y
+            offset = rx
+        if vx > WIDTH:
+            vy += (vx - WIDTH) / tan
+            vx = WIDTH
+            
+        dis = min(disH, disV)
+        return dis, offset, vx, vy
 
-            # horizontals
-            texture_h = 'x'
-            y, dy = (ym + TILESIZE, 1) if sin_a >= 0 else (ym, -1)
-            for i in range(0, HEIGTH, TILESIZE):
-                depth_h = (y - oy) / sin_a
-                xh = ox + depth_h * cos_a
-                tile_h = self.mapping(xh, y + dy)
-                if tile_h in world_map:
-                    texture_h = world_map[tile_h]
-                    break
-                y += dy * TILESIZE
-
-            # projection
-            depth, offset, texture = (depth_v, yv, texture_v) if depth_v < depth_h else (depth_h, xh, texture_h)
-            offset = int(offset) % TILESIZE
-            depth *= math.cos((NUM_RAYS // 2 - ray) * DELTA_ANGLE)
-            depth = max(depth, 0.00001)
-            proj_height = min(int(PROJ_COEFF / depth), 2 * HEIGTH)
-
-            wall_column = self.textures[texture].subsurface(offset * TEXTURE_SCALE, 0, TEXTURE_SCALE, TEXTURE_HEIGHT)
-            wall_column = pygame.transform.scale(wall_column, (SCALE, proj_height))
-            wall_pos = (WIDTH + ray * SCALE, HALF_HEIGHT - proj_height // 2)
-            self.display_surface.blit(wall_column, wall_pos)
-            # walls.append((depth, wall_column, wall_pos))
-            cur_angle += DELTA_ANGLE
-        # return walls
-
-    def custom_draw(self,player):
+    def custom_draw(self, player):
 
         # getting the offset 
         self.offset.x = player.rect.centerx - self.half_width
@@ -144,88 +186,16 @@ class YSortCameraGroup(pygame.sprite.Group):
         elif player.rect.centery > len(WORLD_MAP) * TILESIZE - self.half_height:
             self.offset.y = len(WORLD_MAP) * TILESIZE - HEIGTH
 
-        rx, ry, vx, vy = 0.0, 0.0, 0.0, 0.0 
+        # rx, ry, vx, vy = 0.0, 0.0, 0.0, 0.0 
         rad = np.deg2rad(90 + player.front) - HALF_FOV
-        for i in range(NUM_RAYS):      
-            xo = 0
-            yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
-            # check vertical
-            dof = 0
-            disV = 10000
-            tan = np.tan(rad)
-            if np.cos(rad) > 0.001: # looking right
-                rx = int(player.hitbox.centerx // TILESIZE) * TILESIZE + TILESIZE 
-                ry = (player.hitbox.centerx - rx) * tan + player.hitbox.centery 
-                xo = TILESIZE
-                yo = - xo * tan
-            elif np.cos(rad) < -0.001:
-                rx = int(player.hitbox.centerx // TILESIZE) * TILESIZE 
-                ry = (player.hitbox.centerx - rx) * tan + player.hitbox.centery 
-                xo = -TILESIZE
-                yo = - xo * tan
-            else:
-                dof = DOF
-                yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
-                rx = player.hitbox.centerx 
-                ry = player.hitbox.centery
-                
-            while dof < DOF:
-                mx = int(rx // TILESIZE) if np.cos(rad) > 0.001 else int(rx // TILESIZE) - 1
-                my = int(ry // TILESIZE) #if np.cos(rad) > 0.001 else int(ry // TILESIZE) - 1
-                if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
-                    dof = DOF
-                    disV = np.cos(rad) * (rx - player.hitbox.centerx) - np.sin(rad) * (ry - player.hitbox.centery)
-                else:
-                    rx += xo
-                    ry += yo
-                    dof += 1
-            vx, vy = rx - self.offset.x, ry - self.offset.y
-            offset = ry
-            # check horizontal
-            dof = 0
-            disH = 10000
-            tan = 1.0/ tan if tan != 0 else 1 << 20
-            if np.sin(rad) > 0.001: # looking up
-                ry = int(player.hitbox.centery / TILESIZE) * TILESIZE
-                rx = (player.hitbox.centery - ry) * tan + player.hitbox.centerx 
-                yo = - TILESIZE
-                xo = - yo * tan
-            elif np.sin(rad) < -0.001:
-                ry = int(player.hitbox.centery / TILESIZE) * TILESIZE + TILESIZE 
-                rx = (player.hitbox.centery - ry) * tan + player.hitbox.centerx 
-                yo = TILESIZE
-                xo = - yo * tan
-            else:
-                dof = DOF
-                yo = -TILESIZE if np.sin(rad) > 0 else TILESIZE 
-                rx = player.hitbox.centerx
-                ry = player.hitbox.centery
-                
-            while dof < DOF:
-                mx = int(rx / TILESIZE) #if np.sin(rad) < -0.001 else int(rx / TILESIZE) + 1
-                my = int(ry / TILESIZE) if np.sin(rad) < -0.001 else int(ry / TILESIZE) - 1
-                
-                if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
-                    # print(mx, my)
-                    dof = DOF
-                    disH = np.cos(rad) * (rx - player.hitbox.centerx) - np.sin(rad) * (ry - player.hitbox.centery)
-                else:
-                    rx += xo
-                    ry += yo
-                    dof += 1
-                    
-            if disH < disV:
-                vx, vy = rx - self.offset.x, ry - self.offset.y
-                offset = rx
-            if vx > WIDTH:
-                vy += (vx - WIDTH) / tan
-                vx = WIDTH
-                
-            dis = min(disH, disV)
-            [x, y] = [player.hitbox.centerx - self.offset.x, player.hitbox.centery - self.offset.y]
+        for i in range(NUM_RAYS):          
+            dis, offset, vx, vy = self.ray_casting(player, rad)
+            [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
             if i == 0 or i == NUM_RAYS - 1:
                 pygame.draw.line(self.display_surface, 'black', [x, y], [vx, vy]) 
             dis *= np.cos((NUM_RAYS//2 - i) * DELTA_ANGLE)
+            player.distances[i] = dis
+
             wall_height = min(HEIGTH, int(35000 / (dis + 0.001)))
             color = 255 / (1 + dis * dis * 0.0001)
             offset = int(offset) % TILESIZE
@@ -234,7 +204,70 @@ class YSortCameraGroup(pygame.sprite.Group):
             scale = width // TILESIZE
             wall_column = self.textures['x'].subsurface(offset * scale, 0, scale, height)
             wall_column = pygame.transform.scale(wall_column, (SCALE, wall_height))
-            wall_pos = (2 *WIDTH - i * SCALE, HALF_HEIGHT - wall_height // 2)
+            wall_pos = (2 * WIDTH - i * SCALE - 1, HALF_HEIGHT - wall_height // 2)
+            
             self.display_surface.blit(wall_column, wall_pos)
             # pygame.draw.rect(self.display_surface, (color, color, color), (WIDTH + i * SCALE, int(HEIGTH / 2 - wall_height / 2), SCALE, wall_height))
             rad += DELTA_ANGLE
+    
+    def get_state(self, player, zombie):
+        # 0 ~ 3: distance of 4 directions to the obstacles
+        # 4: distance to the target
+        # 5: relative direction with the target
+        state = [0.0] * 6
+        for i in range(4):
+            rad = np.deg2rad(90 * i + player.front)
+            dis, _, vx, vy = self.ray_casting(player, rad)
+            state[i] = dis
+            [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
+            pygame.draw.line(self.display_surface, 'blue', [x, y], [vx, vy]) 
+        # pygame.draw.circle(self.display_surface, 'black', [zombie.rect.centerx - self.offset.x, zombie.rect.centery - self.offset.y], 1.0)
+        _, _, pos, distance = zombie.position(player)
+        state[4] = distance
+        state[5] = pos
+        player.state = state
+        return np.array(state, dtype = float)
+    
+    def reflect(self, player, zombie, state_old, final_move):
+        state_new = self.get_state(player, zombie)
+        def linear(location):
+            delta = abs(location - 30)
+            return 0.12 * (30 - delta) / 30 if delta < 30 else 0
+        def gaussian(distance):
+            return 50 * np.exp(- (distance - 64) ** 2)
+        reward = linear(state_new[5]) + gaussian(state_new[4])
+        done = 0
+        player.rewards += reward
+
+        if any(state_new[i] < 60 for i in range(5)):
+            done = 1
+            player.rewards -= 100
+
+        if TILESIZE <= state_new[4] < 2 * TILESIZE and 0 < state_old[5] < 60:
+            done = 1
+            player.rewards += 100
+
+        # train short memory
+        player.train_short_memory(state_old, final_move, reward, state_new, done)
+
+        #remember
+        player.remember(state_old, final_move, reward, state_new, done)
+
+        
+        if done:
+            # Train long memory, plot result
+            player.plot_reward.append(player.rewards)
+            player.total_rewards += player.rewards
+            player.mean_reward.append(player.total_rewards / player.n_game)
+            r = random.randint(2 * TILESIZE, (TILE_V - 3) * TILESIZE) 
+            c = random.randint(2 * TILESIZE, (TILE_H - 3) * TILESIZE) 
+            player.rect.update(r, c, TILESIZE, TILESIZE)
+            # player.rect = player.init_rect.copy()
+            player.fx = player.rect.centerx
+            player.fy = player.rect.centery
+            player.front = 0
+            player.n_game += 1
+            player.rewards = 0
+            player.train_long_memory()
+            
+            # plot(player.plot_reward, player.mean_reward)

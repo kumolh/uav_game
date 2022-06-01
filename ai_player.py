@@ -2,108 +2,50 @@ import pygame
 from settings import *
 import numpy as np
 import tensorflow as tf
-from keras.layers import Dense, Dropout, Conv2D, Flatten
-from keras.models import Sequential
-import numpy as np
 import collections
 import random
+from Helper import plot
+from QTrainer import QTrainer
 
-class QTrainer:
-    def __init__(self, lr, gamma, load = False):
-        self.lr = lr
-        self.gamma = gamma
-        self.model = Sequential([
-            Dense(256, input_shape=(11,), activation='relu'),
-            Dense(4, activation=None)
-        ])
-        if load:
-            self.model.load_weights('model.ckpt')
-            
-    
-    def train_step(self, state, action, reward, next_state, done):
-        state = tf.convert_to_tensor(state, dtype=tf.float32)
-        next_state = tf.convert_to_tensor(next_state, dtype=tf.float32)
-        action = tf.convert_to_tensor(action, dtype=tf.int64)
-        reward = tf.convert_to_tensor(reward, dtype=tf.float32)
-
-
-        if(len(state.shape) == 1): # only one parameter to train , Hence convert to tuple of shape (1, x)
-            #(1 , x)
-            state = tf.expand_dims(state, 0)
-            next_state = tf.expand_dims(next_state, 0)
-            action = tf.expand_dims(action, 0)
-            reward = tf.expand_dims(reward, 0)
-            done = (done, )
-
-        # 1. Predicted Q value with current state
-        pred = self.model(state)
-        target = tf.identity(pred) #pred.clone().cuda()
-        for idx in range(len(done)):
-            Q_new = reward.numpy()[idx]
-            if not done[idx]:
-                Q_new = reward.numpy()[idx] + self.gamma * np.max(self.model(next_state))
-            target = target.numpy()
-            index = np.argmax(action.numpy()[idx], axis=0)
-            target[idx][index] = Q_new 
-            target = tf.convert_to_tensor(target)
-        # 2. Q_new = reward + gamma * max(next_predicted Qvalue) -> only do this if not done
-
-        # training step : gradient decent (1.0) to minimize loss
-        opt = tf.keras.optimizers.Adam(learning_rate=self.lr)
-        loss_fn = lambda: tf.keras.losses.mse(self.model(state), target)
-        var_list_fn = lambda: self.model.trainable_weights
-        ### training
-        opt.minimize(loss_fn, var_list_fn)
 
 class AI_Player(pygame.sprite.Sprite):
-    def __init__(self, pos, groups, obstacle_sprites, target, model):
+    def __init__(self, pos, groups, obstacle_sprites):
         super().__init__(groups)
         self.origin_image = pygame.image.load(
             'img/uav.png').convert_alpha()
         self.image = self.origin_image
-        self.rect = self.image.get_rect(topleft=pos)
+        self.init_rect = self.image.get_rect(topleft=pos)
+        self.rect = self.init_rect.copy()
         self.hitbox = self.rect #.inflate(0, -26)
+        # self.zombie = zombie
 
+        self.distances = [0] * NUM_RAYS
         self.direction = pygame.math.Vector2()
-        self.speed = 3
+        self.speed = 2
         self.front = 0
         self.fx = self.hitbox.centerx
         self.fy = self.hitbox.centery
         self.obstacle_sprites = obstacle_sprites
-        self.target = target
+        self.state = [0.0] * 6
 
-        self.trainer = QTrainer(lr = LR, gamma = 0.9, load=True)
+        # self.goal_space = [g1] # -->
+        # self.confidence = [c1] # --> sumup: 1
+
+        self.trainer = QTrainer(lr = LR, gamma = 0.9, load = False)
+        self.trainer.learn_from_demo()
         self.memory = collections.deque(maxlen = MAX_MEMORY)
-        self.n_game = 0
+        self.n_game = 1
         self.epsilon = 0
+        self.rewards = 0
+        self.total_rewards = 0
+        self.plot_reward = []
+        self.mean_reward = []
+    
+    def add_target(self, zombie):
+        self.zombie = zombie
 
     def get_state(self):
-        state = [
-            # wall up
-            WORLD_MAP[self.rect.centerx // TILESIZE][self.rect.centery // TILESIZE] == 'x'
-            or ((self.rect.centery // TILESIZE - 1 < TILE_V) and WORLD_MAP[self.rect.centerx // TILESIZE][self.rect.centery // TILESIZE - 1] == 'x'),
-
-             # wall down
-            WORLD_MAP[self.rect.centerx // TILESIZE][self.rect.centery // TILESIZE + 1] == 'x'
-            or ((self.rect.centery // TILESIZE + 2 < TILE_V) and WORLD_MAP[self.rect.centerx // TILESIZE][self.rect.centery // TILESIZE + 2] == 'x'),
-
-            # wall right
-            WORLD_MAP[self.rect.centerx // TILESIZE + 1][self.rect.centery // TILESIZE] == 'x'
-            or ((self.rect.centerx // TILESIZE + 2 < TILE_H) and WORLD_MAP[self.rect.centerx // TILESIZE + 2][self.rect.centery // TILESIZE] == 'x'),
-
-            #wall Left
-            WORLD_MAP[self.rect.centerx // TILESIZE][self.rect.centery // TILESIZE] == 'x'
-            or ((1 <= self.rect.centerx // TILESIZE) and WORLD_MAP[self.rect.centerx // TILESIZE - 1][self.rect.centery // TILESIZE] == 'x'),
-
-            #moving  Direction
-
-            #target Location
-            self.target.rect.centerx < self.rect.centerx, # target is in left
-            self.target.rect.centerx > self.rect.centerx, # target is in right
-            self.target.rect.centery < self.rect.centery, # target is in up
-            self.target.rect.centery > self.rect.centery, # target is in down
-        ]
-        return np.array(state, dtype=int)
+        return np.array(self.state, dtype = float)
 
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
@@ -113,7 +55,7 @@ class AI_Player(pygame.sprite.Sprite):
             mini_sample = random.sample(self.memory, BATCH_SIZE)
         else:
             mini_sample = self.memory
-        states,actions,rewards,next_states,dones = zip(*mini_sample)
+        states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
 
     def train_short_memory(self, state, action, reward, next_state, done):
@@ -122,20 +64,25 @@ class AI_Player(pygame.sprite.Sprite):
     def get_action(self, state):
         # random moves: tradeoff explotation / exploitation
         self.epsilon = 80 - self.n_game
-        final_move = [0, 0, 0, 0]
+        final_move = 0
         if(random.randint(0, 200) < self.epsilon):
-            move = random.randint(0, 3)
-            final_move[move] = 1
+            final_move = random.randint(0, 11)
         else:
-            # state0 = torch.tensor(state,dtype=torch.float).cuda()
             state0 = tf.convert_to_tensor(state, dtype=tf.float32)
             state0 = tf.expand_dims(state0, 0)
-            # prediction = self.model(state0).cuda() # prediction by model 
-            prediction = self.model(state0)
-            # move = torch.argmax(prediction).item()
-            move = np.argmax(prediction.numpy(), axis=1)[0]
-            final_move[move] = 1 
+            prediction = self.trainer.model(state0)
+            final_move = np.argmax(prediction.numpy(), axis=1)[0]
         return final_move
+
+    def is_collision(self, zombie):
+        #check if collision with wall
+        n, m = self.rect.centerx // TILESIZE, self.rect.centery // TILESIZE
+        if 0 <= n < TILE_H and 0 <= m < TILE_V and WORLD_MAP[m][n] == 'x': return True
+        if 0 <= n < TILE_H and 0 <= m+1 < TILE_V and WORLD_MAP[m][n+1] == 'x': return True
+        if 0 <= n+1 < TILE_H and 0 <= m < TILE_V and WORLD_MAP[m+1][n] == 'x': return True
+        if 0 <= n+1 < TILE_H and 0 <= m+1 < TILE_V and WORLD_MAP[m+1][n+1] == 'x': return True
+        if self.rect.colliderect(zombie.rect): return True
+        return False
 
     def input(self):
         state_old = self.get_state()
@@ -143,31 +90,29 @@ class AI_Player(pygame.sprite.Sprite):
         final_move = self.get_action(state_old)
 
         # perform move and get new state
+        if final_move % 4 == 0:
+            self.direction.y = -1
+        elif final_move % 4 == 1:
+            self.direction.y = 1
+        else:
+            self.direction.y = 0
 
-        reward, done, score = game.play_step(final_move)
-        state_new = self.get_state()
+        if final_move % 4 == 2:
+            self.direction.x = 1
+        elif final_move % 4 == 3:
+            self.direction.x = -1
+        else:
+            self.direction.x = 0
 
-        # train short memory
-        self.train_short_memory(state_old, final_move, reward, state_new, done)
-
-        #remember
-        self.remember(state_old,final_move,reward,state_new,done)
-
-        # if done:
-        #     # Train long memory,plot result
-        #     game.reset()
-        #     agent.n_game += 1
-        #     agent.train_long_memory()
-        #     if(score > reward): # new High score 
-        #         reward = score
-        #         agent.model.save_model()
-        #     print('Game:',agent.n_game,'Score:',score,'Record:',record)
-            
-        #     plot_scores.append(score)
-        #     total_score += score
-        #     mean_score = total_score / agent.n_game
-        #     plot_mean_scores.append(mean_score)
-        #     plot(plot_scores, plot_mean_scores)
+        if final_move // 4 == 0:
+            self.front -= 2
+            self.front %= 360
+        elif final_move // 4 == 2:
+            self.front += 2
+            self.front %= 360
+    
+        return final_move
+        
 
 
     def move(self, speed):
@@ -202,7 +147,58 @@ class AI_Player(pygame.sprite.Sprite):
             self.fy = self.hitbox.centery
 
         self.rect.center = self.hitbox.center
+    
+    def reflect(self, state_old, final_move):
+        state_new = self.get_state()
+        def linear(location):
+            """calculate the reward for target in the middle
+
+            Args:
+                location (_type_): the ray index of the target in the captured image
+
+            Returns:
+                _type_: reward from linear interpolation 
+            """
+            delta = abs(location - 30)
+            return 0.12 * (30 - delta) / 30 if delta < 30 else 0
+        def gaussian(distance):
+            return 50 * np.exp(- (distance - 64) ** 2)
+        reward = linear(state_new[5]) + gaussian(state_new[4])
+        done = False
+        self.rewards += reward
+
+        if any(state_new[i] < 60 for i in range(5)):
+            done = True
+            self.rewards -= 100
+
+        if TILESIZE <= state_new[4] < 2 * TILESIZE and 0 < state_old[5] < 60:
+            done = True
+            self.rewards += 100
+
+        # train short memory
+        self.train_short_memory(state_old, final_move, reward, state_new, done)
+
+        #remember
+        self.remember(state_old, final_move, reward, state_new, done)
+
+        
+        if done:
+            # Train long memory, plot result
+            self.plot_reward.append(self.rewards)
+            self.total_rewards += self.rewards
+            self.mean_reward.append(self.total_rewards / self.n_game)
+            self.rect = self.init_rect.copy()
+            self.fx = self.rect.centerx
+            self.fy = self.rect.centery
+            self.front = 0
+            self.n_game += 1
+            self.rewards = 0
+            self.train_long_memory()
+            
+            plot(self.plot_reward, self.mean_reward)
 
     def update(self):
-        self.input()
+        state_old = self.get_state()
+        final_move = self.input()
         self.move(self.speed)
+        self.reflect(state_old, final_move)

@@ -1,7 +1,7 @@
 import pygame, sys
 from settings import *
 from level import Level
-
+import numpy as np
 class Game:
     def __init__(self):
           
@@ -13,10 +13,18 @@ class Game:
 
         self.level = Level()
     
+    def save_demo(self):
+        file = open('demo.csv', 'w')
+        for tuple in self.level.player.memory:
+            lst = list(tuple[0]) + [tuple[1], tuple[2]] + list(tuple[3]) + [tuple[4]]
+            np.savetxt(file, [lst], delimiter=', ')
+        file.close()
+
     def run(self):
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    # self.save_demo()
                     pygame.quit()
                     sys.exit()
             

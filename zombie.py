@@ -29,25 +29,31 @@ class Zombie(pygame.sprite.Sprite):
                     img, (xx + 96, yy, 32, 100)))
         return sprites
 
-    def draw_sprites(self, player):
-        # enemies : x, y, angle2p, dist2p, type, size, direction, dir2p
+    def position(self, player):
         relative_pos = [self.rect.centerx - player.rect.centerx, self.rect.centery - player.rect.centery]
         angle = np.arctan2(-relative_pos[1], relative_pos[0])
-        theta = (player.front - angle) % 360
-
+        if angle < 0: angle += 2 * np.pi
         angle = (np.rad2deg(angle) - 90) % 360
         dis = np.sqrt(sum(x ** 2 for x in relative_pos))
         zombie_height = min(2 * HEIGTH, int(100000 / (dis + 0.001)))
-        idx = 3
-        if 135 <= theta < 225: idx = 0
-        elif theta < 45 or 315 <= theta: idx = 2
-        elif 225 <= theta < 315: idx = 1
-        zombie = self.zombie[1][0][idx]
-        height, width = 100, 32
-        scale = zombie_height / height
-        zombie_pos = (angle - player.front + 60) % 360
-        zombie_pos = (2 * WIDTH - zombie_pos * SCALE, HALF_HEIGHT - zombie_height // 3)
-        zombie = pygame.transform.scale(zombie, (scale * width, zombie_height))
-        if WIDTH < zombie_pos[0] < 2 * WIDTH:
+        # zombie_pos = (player.front + 30 - angle) % 360
+        theta = (player.front + 30 - angle) % 360
+        zombie_pos = (WIDTH + theta * WIDTH // 60, HALF_HEIGHT - zombie_height // 3)
+        return zombie_height, zombie_pos, theta, dis
+        
+    def draw_sprites(self, player):
+        # enemies : x, y, angle2p, dist2p, type, size, direction, dir2p
+        zombie_height, zombie_pos, theta, dis = self.position(player)
+        ray_idx = int(2 * WIDTH - zombie_pos[0]) // SCALE
+        if WIDTH < zombie_pos[0] < 2 * WIDTH and player.distances[ray_idx] > dis:
+            idx = 3
+            if 135 <= theta < 225: idx = 0
+            elif theta < 45 or 315 <= theta: idx = 2
+            elif 225 <= theta < 315: idx = 1
+            zombie = self.zombie[1][0][idx]
+            height, width = 100, 32
+            scale = zombie_height / height
+            zombie = pygame.transform.scale(zombie, (scale * width, zombie_height))
             self.display_surface.blit(zombie, zombie_pos)
+            
 
