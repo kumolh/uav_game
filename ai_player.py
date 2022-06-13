@@ -31,8 +31,8 @@ class AI_Player(pygame.sprite.Sprite):
         # self.goal_space = [g1] # -->
         # self.confidence = [c1] # --> sumup: 1
 
-        self.trainer = QTrainer(lr = LR, gamma = 0.9, load = False)
-        self.trainer.learn_from_demo()
+        self.trainer = QTrainer(lr = LR, gamma = 0.9, load = True)
+        # self.trainer.learn_from_demo()
         self.memory = collections.deque(maxlen = MAX_MEMORY)
         self.n_game = 1
         self.epsilon = 0
@@ -90,6 +90,7 @@ class AI_Player(pygame.sprite.Sprite):
         final_move = self.get_action(state_old)
 
         # perform move and get new state
+        # 0, 4, 8: moving forward, left/center/right
         if final_move % 4 == 0:
             self.direction.y = -1
         elif final_move % 4 == 1:

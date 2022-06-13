@@ -1,6 +1,7 @@
 import pygame
 import numpy as np
 from settings import *
+import random
 
 
 class Zombie(pygame.sprite.Sprite):
@@ -8,10 +9,11 @@ class Zombie(pygame.sprite.Sprite):
         super().__init__(groups)
         self.front = 0
         self.zombie = self.load_img()
-        self.image = pygame.image.load('img/zombie/icon.png').convert_alpha()
+        self.image = pygame.image.load('img/zombie/zombie1.png').convert_alpha()
         self.rect = self.image.get_rect(topleft=pos)
         self.obstacle_sprites = obstacle_sprites
         self.display_surface = pygame.display.get_surface()
+        self.speed = 2
 
     def load_img(self):
         img = pygame.image.load(
@@ -55,5 +57,15 @@ class Zombie(pygame.sprite.Sprite):
             scale = zombie_height / height
             zombie = pygame.transform.scale(zombie, (scale * width, zombie_height))
             self.display_surface.blit(zombie, zombie_pos)
-            
+        
+    def move(self):
+        final_move = random.randint(0, 3)
+        if final_move == 0:
+            self.rect.centerx += self.speed
+        elif final_move == 1:
+            self.rect.centerx -= self.speed
+        elif final_move == 2:
+            self.rect.centery -= self.speed
+        elif final_move == 3:
+            self.rect.centery += self.speed
 

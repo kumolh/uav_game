@@ -52,5 +52,10 @@ def location_reward():
     # ax.scatter(x,y,z, c= colors)
     plt.show()
 
+def icon_compress(path, name):
+    img = Image.open(path)
+    img.thumbnail((64, 64))
+    img.save(name)
+
 if __name__ == '__main__':
-    location_reward()
+    icon_compress('img/zombie/img2.png', 'zombie2.png')

@@ -13,7 +13,7 @@ class QTrainer:
         self.model = Sequential([
             Dense(128, input_shape=(6,), activation='relu'),
             Dense(64, activation='relu'),
-            Dense(12, activation=None)
+            Dense(14, activation=None)
         ])
         if load:
             self.model = keras.models.load_model("my_model.h5")

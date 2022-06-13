@@ -3,6 +3,7 @@ from settings import *
 from tile import Tile
 from player import Player
 from ai_player import *
+from player_com import PlayerCom
 from debug import debug
 import numpy as np
 from zombie import Zombie
@@ -31,6 +32,7 @@ class Level:
                 if col == 'x':
                     Tile((x,y),[self.visible_sprites, self.obstacle_sprites])
                 if col == 'p':
+                    # self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
                     # self.player = AI_Player((x, y), [self.visible_sprites], self.obstacle_sprites)
                     self.player = Player((x, y), [self.visible_sprites], self.obstacle_sprites)
                 if col == 'z':
@@ -44,9 +46,11 @@ class Level:
         self.visible_sprites.custom_draw(self.player)
         state = self.visible_sprites.get_state(self.player, self.zombie)
         move = self.player.input()
-        self.player.move(self.player.speed)
-        self.visible_sprites.reflect(self.player, self.zombie, state, move)
+        if move >= 0:
+            self.player.move(self.player.speed)
+            self.visible_sprites.reflect(self.player, self.zombie, state, move)
         self.frontground()
+        self.zombie.move()
         # self.visible_sprites.update()
     
     def frontground(self):
@@ -119,7 +123,7 @@ class YSortCameraGroup(pygame.sprite.Group):
             
         while dof < DOF:
             mx = int(rx // TILESIZE) if np.cos(rad) > 0.001 else int(rx // TILESIZE) - 1
-            my = int(ry // TILESIZE) if np.sin(rad) > 0.001 else int(ry // TILESIZE) - 1
+            my = int(ry // TILESIZE) #if np.cos(rad) > 0.001 else int(ry // TILESIZE) - 1
             if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
                 dof = DOF
                 disV = np.cos(rad) * (rx - player.rect.centerx) - np.sin(rad) * (ry - player.rect.centery)

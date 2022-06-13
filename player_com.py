@@ -8,7 +8,7 @@ from Helper import plot
 from QTrainer import QTrainer
 
 
-class AI_Player(pygame.sprite.Sprite):
+class PlayerCom(pygame.sprite.Sprite):
     def __init__(self, pos, groups, obstacle_sprites):
         super().__init__(groups)
         self.origin_image = pygame.image.load(
@@ -32,7 +32,7 @@ class AI_Player(pygame.sprite.Sprite):
         # self.confidence = [c1] # --> sumup: 1
 
         self.trainer = QTrainer(lr = LR, gamma = 0.9, load = False)
-        self.trainer.learn_from_demo()
+        # self.trainer.learn_from_demo()
         self.memory = collections.deque(maxlen = MAX_MEMORY)
         self.n_game = 1
         self.epsilon = 0
@@ -66,13 +66,13 @@ class AI_Player(pygame.sprite.Sprite):
         self.epsilon = 80 - self.n_game
         final_move = 0
         if(random.randint(0, 200) < self.epsilon):
-            final_move = random.randint(0, 11)
+            final_move = random.randint(1, 12)
         else:
             state0 = tf.convert_to_tensor(state, dtype=tf.float32)
             state0 = tf.expand_dims(state0, 0)
             prediction = self.trainer.model(state0)
-            final_move = np.argmax(prediction.numpy(), axis=1)[0]
-        return final_move
+            final_move = np.argmax(prediction.numpy(), axis=1)[0] + 1
+        return final_move 
 
     def is_collision(self, zombie):
         #check if collision with wall
@@ -87,60 +87,53 @@ class AI_Player(pygame.sprite.Sprite):
     def input(self):
         state_old = self.get_state()
         # get move
-        final_move = self.get_action(state_old)
+        ai_move = self.get_action(state_old)
 
-        # perform move and get new state
-        if final_move % 4 == 0:
-            self.direction.y = -1
-        elif final_move % 4 == 1:
-            self.direction.y = 1
-        else:
-            self.direction.y = 0
-
-        if final_move % 4 == 2:
-            self.direction.x = 1
-        elif final_move % 4 == 3:
-            self.direction.x = -1
-        else:
-            self.direction.x = 0
-
-        if final_move // 4 == 0:
-            self.front -= 2
-            self.front %= 360
-        elif final_move // 4 == 2:
-            self.front += 2
-            self.front %= 360
-    
         keys = pygame.key.get_pressed()
-
         move = 0
         if keys[pygame.K_UP]:
-            self.direction.y = -1
-        elif keys[pygame.K_DOWN]:
-            self.direction.y = 1
             move = 1
+        elif keys[pygame.K_DOWN]:
+            move = 2
+
+        if keys[pygame.K_RIGHT]:
+            move = 3
+        elif keys[pygame.K_LEFT]:
+            move = 4
+
+        dire = 0
+        if keys[ord('a')]:
+            dire = 2
+        elif keys[ord('d')]:
+            dire = 1
+        player_move = dire * 5 + move
+        # if nothing get pressed, the uav should stay still
+        
+        if player_move == 0: final_move = 0
+        else:
+            final_move = player_move if random.uniform(0, 1) < 0.5 else ai_move
+        # perform move and get new state
+        # 0, 4, 8: moving forward, left/center/right
+        if final_move % 5 == 1:
+            self.direction.y = -1
+        elif final_move % 5 == 2:
+            self.direction.y = 1
         else:
             self.direction.y = 0
 
-        if keys[pygame.K_RIGHT]:
+        if final_move % 5 == 3:
             self.direction.x = 1
-            move = 2
-        elif keys[pygame.K_LEFT]:
+        elif final_move % 5 == 4:
             self.direction.x = -1
-            move = 3
         else:
             self.direction.x = 0
 
-        dire = 1
-        if keys[ord('a')]:
-            self.front += 2
-            self.front %= 360
-            dire = 0
-        elif keys[ord('d')]:
+        if final_move // 5 == 1:
             self.front -= 2
             self.front %= 360
-            dire = 2
-        # return dire * 4 + move
+        elif final_move // 5 == 2:
+            self.front += 2
+            self.front %= 360
 
         return final_move
         
@@ -231,5 +224,6 @@ class AI_Player(pygame.sprite.Sprite):
     def update(self):
         state_old = self.get_state()
         final_move = self.input()
-        self.move(self.speed)
-        self.reflect(state_old, final_move)
+        if final_move >= 0:
+            self.move(self.speed)
+            self.reflect(state_old, final_move)
