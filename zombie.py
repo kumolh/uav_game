@@ -11,9 +11,13 @@ class Zombie(pygame.sprite.Sprite):
         self.zombie = self.load_img()
         self.image = pygame.image.load('img/zombie/zombie1.png').convert_alpha()
         self.rect = self.image.get_rect(topleft=pos)
+        self.fx = self.rect.centerx
+        self.fy = self.rect.centery
         self.obstacle_sprites = obstacle_sprites
         self.display_surface = pygame.display.get_surface()
-        self.speed = 2
+        self.speed = 1
+        self.step = 0
+        self.direction = 0
 
     def load_img(self):
         img = pygame.image.load(
@@ -59,13 +63,47 @@ class Zombie(pygame.sprite.Sprite):
             self.display_surface.blit(zombie, zombie_pos)
         
     def move(self):
-        final_move = random.randint(0, 3)
-        if final_move == 0:
-            self.rect.centerx += self.speed
-        elif final_move == 1:
-            self.rect.centerx -= self.speed
-        elif final_move == 2:
-            self.rect.centery -= self.speed
-        elif final_move == 3:
-            self.rect.centery += self.speed
+        need_change = True
+        dx = dy = 0
+        if self.direction == 0: dy = -1
+        elif self.direction == 1: dx = -1
+        elif self.direction == 2: dy = 1
+        else: dx = 1
+        self.fx = self.rect.centerx + dx * self.speed
+        self.fy = self.rect.centery + dy * self.speed
+        if not(WORLD_MAP[int(self.fy - TILESIZE/ 2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy + TILESIZE/2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx + TILESIZE / 2) // TILESIZE] == 'x'):
+                self.rect.centerx = self.fx
+                self.rect.centery = self.fy
+                need_change = False
+        elif not(WORLD_MAP[int(self.rect.top) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.rect.bottom + 1) // TILESIZE][int(self.fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.rect.y) // TILESIZE ][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.rect.y) // TILESIZE ][int(self.fx + TILESIZE / 2) // TILESIZE] == 'x'):
+                self.rect.centerx = int(self.fx)
+                self.fy = self.rect.centery
+        elif not(WORLD_MAP[int(self.fy - TILESIZE / 2) // TILESIZE ][int(self.rect.x) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy +TILESIZE / 2) // TILESIZE ][int(self.rect.x) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy) // TILESIZE][int(self.rect.left) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(self.fy) // TILESIZE][int(self.rect.right + 1) // TILESIZE] == 'x'):
+                self.rect.centery = int(self.fy)
+                self.fx = self.rect.centerx
+        else:
+            self.fx = self.rect.centerx
+            self.fy = self.rect.centery
+        if need_change:
+            self.direction += 1
+            self.direction %= 4 
+            self.step = 0
+        if self.step > 240 and random.uniform(0, 1) < 0.5:
+            self.step = 0
+            new_dire = self.direction
+            while new_dire == self.direction:
+                new_dire = random.randint(0, 3)
+            self.direction = new_dire
+        self.step += 1
+
+
 
