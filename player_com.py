@@ -40,6 +40,10 @@ class PlayerCom(pygame.sprite.Sprite):
         self.total_rewards = 0
         self.plot_reward = []
         self.mean_reward = []
+
+        # goal space
+        self.goals = ['back following', 'circling']
+        self.beliefs = [1 / len(self.goals)] * len(self.goals)
     
     def add_target(self, zombie):
         self.zombie = zombie
@@ -74,6 +78,13 @@ class PlayerCom(pygame.sprite.Sprite):
             final_move = np.argmax(prediction.numpy(), axis=1)[0] + 1
         return final_move 
 
+    def deterministic_action(self, state):
+        if 0 < state[5] < 60:
+            delta = (30 - state[5])
+            self.front += int(delta / 5)
+            self.front %= 360
+        return 0
+
     def is_collision(self, zombie):
         #check if collision with wall
         n, m = self.rect.centerx // TILESIZE, self.rect.centery // TILESIZE
@@ -87,7 +98,8 @@ class PlayerCom(pygame.sprite.Sprite):
     def input(self):
         state_old = self.get_state()
         # get move
-        ai_move = self.get_action(state_old)
+        # ai_move = self.get_action(state_old)
+        ai_move = self.deterministic_action(state_old)
 
         keys = pygame.key.get_pressed()
         move = 0
@@ -135,7 +147,7 @@ class PlayerCom(pygame.sprite.Sprite):
             self.front += 2
             self.front %= 360
 
-        return final_move
+        return player_move #final_move
         
 
 

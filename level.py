@@ -18,6 +18,7 @@ class Level:
         # sprite group setup
         self.visible_sprites = YSortCameraGroup()
         self.obstacle_sprites = pygame.sprite.Group()
+        self.zombies = []
         # sprite setup
         self.create_map()
 
@@ -32,13 +33,15 @@ class Level:
                 if col == 'x':
                     Tile((x,y),[self.visible_sprites, self.obstacle_sprites])
                 if col == 'p':
-                    # self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
+                    self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
                     # self.player = AI_Player((x, y), [self.visible_sprites], self.obstacle_sprites)
-                    self.player = Player((x, y), [self.visible_sprites], self.obstacle_sprites)
-                if col == '0':
-                    self.zombie = Zombie((x, y), [self.visible_sprites], self.obstacle_sprites, 0)
-                if col == '1':
-                    self.zombie1 = Zombie((x, y), [self.visible_sprites], self.obstacle_sprites, 1)
+                    # self.player = Player((x, y), [self.visible_sprites], self.obstacle_sprites)
+                if '0' <= col <= '9':
+                    type = random.randint(0, 1)
+                    zombie = Zombie((x, y), [self.visible_sprites], self.obstacle_sprites, type)
+                    self.zombies.append(zombie)
+        self.zombie = self.zombies[0]
+        self.zombie.set_target()
         self.player.add_target(self.zombie)
 
     def run(self):
@@ -50,15 +53,15 @@ class Level:
         move = self.player.input()
         if move >= 0:
             self.player.move(self.player.speed)
-            self.visible_sprites.reflect(self.player, self.zombie, state, move)
+            # self.visible_sprites.reflect(self.player, self.zombie, state, move)
         self.frontground()
-        self.zombie.move()
-        self.zombie1.move()
+        for zombie in self.zombies:
+            zombie.move()
         # self.visible_sprites.update()
     
     def frontground(self):
-        self.zombie.draw_sprites(self.player)
-        self.zombie1.draw_sprites(self.player)
+        for zombie in self.zombies:
+            zombie.draw_sprites(self.player)
 
 
 

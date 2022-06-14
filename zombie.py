@@ -19,6 +19,10 @@ class Zombie(pygame.sprite.Sprite):
         self.speed = 1
         self.step = 0
         self.direction = 0
+        self.is_target = False
+
+    def set_target(self):
+        self.is_target = True
 
     def load_img(self):
         img = pygame.image.load(
@@ -61,7 +65,11 @@ class Zombie(pygame.sprite.Sprite):
             height, width = 100, 32
             scale = zombie_height / height
             zombie = pygame.transform.scale(zombie, (scale * width, zombie_height))
-            self.display_surface.blit(zombie, zombie_pos)
+            rect = self.display_surface.blit(zombie, zombie_pos)
+            rect.height /= 2
+            if self.is_target:
+                # rect = pygame.Rect(zombie_pos, (width, height))
+                pygame.draw.rect(self.display_surface, 'red', rect, 1)
         
     def move(self):
         need_change = True
