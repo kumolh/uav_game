@@ -99,7 +99,6 @@ class PlayerCom(pygame.sprite.Sprite):
         state_old = self.get_state()
         # get move
         # ai_move = self.get_action(state_old)
-        ai_move = self.deterministic_action(state_old)
 
         keys = pygame.key.get_pressed()
         move = 0
@@ -120,10 +119,10 @@ class PlayerCom(pygame.sprite.Sprite):
             dire = 1
         player_move = dire * 5 + move
         # if nothing get pressed, the uav should stay still
-        
-        if player_move == 0: final_move = 0
-        else:
-            final_move = player_move if random.uniform(0, 1) < 0.5 else ai_move
+        final_move = player_move
+        # it's better serve as an offset, rather than real move
+        if random.uniform(0, 1) < 0.5:
+            self.deterministic_action(state_old)
         # perform move and get new state
         # 0, 4, 8: moving forward, left/center/right
         if final_move % 5 == 1:
