@@ -19,8 +19,12 @@ class Level:
         self.visible_sprites = YSortCameraGroup()
         self.obstacle_sprites = pygame.sprite.Group()
         self.zombies = []
+        self.goal = -1
         # sprite setup
         self.create_map()
+
+    def goal_input(self, goal):
+        self.goal = goal
 
     def create_map(self):
         """
@@ -53,7 +57,7 @@ class Level:
         move = self.player.input()
         if move >= 0:
             self.player.move(self.player.speed)
-            # self.visible_sprites.reflect(self.player, self.zombie, state, move)
+            self.visible_sprites.reflect(self.player, self.zombie, state, move)
         self.frontground()
         for zombie in self.zombies:
             zombie.move()
@@ -83,7 +87,6 @@ class YSortCameraGroup(pygame.sprite.Group):
         return (x // TILESIZE) * TILESIZE, (y // TILESIZE) * TILESIZE
     
     def background(self, angle):
-        myfont = pygame.font.SysFont('Comic Sans MS', 15)
         
         # 2D walls and player:
         for sprite in self.sprites():
@@ -230,8 +233,8 @@ class YSortCameraGroup(pygame.sprite.Group):
             rad = np.deg2rad(90 * i + player.front)
             dis, _, vx, vy = self.ray_casting(player, rad)
             state[i] = dis
-            [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
-            pygame.draw.line(self.display_surface, 'blue', [x, y], [vx, vy]) 
+            # [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
+            # pygame.draw.line(self.display_surface, 'blue', [x, y], [vx, vy]) 
         # pygame.draw.circle(self.display_surface, 'black', [zombie.rect.centerx - self.offset.x, zombie.rect.centery - self.offset.y], 1.0)
         _, _, pos, distance = zombie.position(player)
         state[4] = distance
@@ -254,22 +257,24 @@ class YSortCameraGroup(pygame.sprite.Group):
             done = 1
             player.rewards -= 100
 
-        if TILESIZE <= state_new[4] < 2 * TILESIZE and 0 < state_old[5] < 60:
+        if TILESIZE <= state_new[4] < 2 * TILESIZE and 0 < state_new[5] < 60:
             done = 1
             player.rewards += 100
 
         # train short memory
-        player.train_short_memory(state_old, final_move, reward, state_new, done)
+        # player.train_short_memory(state_old, final_move, reward, state_new, done)
 
         #remember
         player.remember(state_old, final_move, reward, state_new, done)
+        target_state = 1 if TILESIZE <= state_new[4] < 2 * TILESIZE else -1
+        if not 0 < state_new[5] < 60: target_state = 0
+        player.remember_target(target_state)
 
-        
         if done:
             # Train long memory, plot result
-            player.plot_reward.append(player.rewards)
-            player.total_rewards += player.rewards
-            player.mean_reward.append(player.total_rewards / player.n_game)
+            # player.plot_reward.append(player.rewards)
+            # player.total_rewards += player.rewards
+            # player.mean_reward.append(player.total_rewards / player.n_game)
             r = random.randint(2 * TILESIZE, (TILE_V - 3) * TILESIZE) 
             c = random.randint(2 * TILESIZE, (TILE_H - 3) * TILESIZE) 
             player.rect.update(r, c, TILESIZE, TILESIZE)
@@ -279,6 +284,15 @@ class YSortCameraGroup(pygame.sprite.Group):
             player.front = 0
             player.n_game += 1
             player.rewards = 0
-            player.train_long_memory()
+            self.save_data()
+            # player.train_long_memory()
             
             # plot(player.plot_reward, player.mean_reward)
+
+    def save_data(self):
+        #save each <s, a, t_s, g> tuple episodicly 
+        file = open('raw_data.csv', 'w')
+        for tuple, target in zip(self.level.player.memory, self.level.player.target_state):
+            lst = list(tuple[0]) + [tuple[1], target, self.goal]
+            np.savetxt(file, [lst], delimiter=', ')
+        file.close()

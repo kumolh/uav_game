@@ -1,7 +1,7 @@
 import pygame
 from settings import *
 import numpy as np
-import collections
+from collections import deque
 
 class Player(pygame.sprite.Sprite):
     def __init__(self, pos, groups, obstacle_sprites):
@@ -22,7 +22,8 @@ class Player(pygame.sprite.Sprite):
         self.obstacle_sprites = obstacle_sprites
         self.state = [0.0] * 6
 
-        self.memory = collections.deque(maxlen = MAX_MEMORY)
+        self.memory = deque(maxlen = MAX_MEMORY)
+        self.target_state = deque(maxLen = MAX_MEMORY)
         self.n_game = 1
         self.epsilon = 0
         self.rewards = 0
@@ -81,13 +82,14 @@ class Player(pygame.sprite.Sprite):
         rad = np.deg2rad(-self.front)
         self.fx += -speed * np.sin(rad) * self.direction.y + speed * np.cos(rad) * self.direction.x
         self.fy += speed * np.cos(rad) * self.direction.y + speed * np.sin(rad) * self.direction.x
-
+        collision = True
         if not(WORLD_MAP[int(self.fy - TILESIZE/ 2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy + TILESIZE/2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx + TILESIZE / 2) // TILESIZE] == 'x'):
                 self.hitbox.centerx = int(self.fx)
                 self.hitbox.centery = int(self.fy)
+                collision = False
         elif not(WORLD_MAP[int(self.hitbox.top) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.hitbox.bottom + 1) // TILESIZE][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.hitbox.y) // TILESIZE ][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
@@ -105,6 +107,7 @@ class Player(pygame.sprite.Sprite):
             self.fy = self.hitbox.centery
 
         self.rect.center = self.hitbox.center
+        return collision
 
     def collision(self, direction):
         front = (self.front) % 360

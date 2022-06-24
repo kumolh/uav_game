@@ -21,7 +21,7 @@ class PlayerCom(pygame.sprite.Sprite):
 
         self.distances = [0] * NUM_RAYS
         self.direction = pygame.math.Vector2()
-        self.speed = 2
+        self.speed = 2.5
         self.front = 0
         self.fx = self.hitbox.centerx
         self.fy = self.hitbox.centery
@@ -159,12 +159,14 @@ class PlayerCom(pygame.sprite.Sprite):
         self.fx += -speed * np.sin(rad) * self.direction.y + speed * np.cos(rad) * self.direction.x
         self.fy += speed * np.cos(rad) * self.direction.y + speed * np.sin(rad) * self.direction.x
 
+        collision = True
         if not(WORLD_MAP[int(self.fy - TILESIZE/ 2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy + TILESIZE/2) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.fy) // TILESIZE][int(self.fx + TILESIZE / 2) // TILESIZE] == 'x'):
                 self.hitbox.centerx = int(self.fx)
                 self.hitbox.centery = int(self.fy)
+                collision = False
         elif not(WORLD_MAP[int(self.hitbox.top) // TILESIZE ][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.hitbox.bottom + 1) // TILESIZE][int(self.fx) // TILESIZE] == 'x' or \
                 WORLD_MAP[int(self.hitbox.y) // TILESIZE ][int(self.fx - TILESIZE / 2) // TILESIZE] == 'x' or \
@@ -182,6 +184,7 @@ class PlayerCom(pygame.sprite.Sprite):
             self.fy = self.hitbox.centery
 
         self.rect.center = self.hitbox.center
+        return collision
     
     def reflect(self, state_old, final_move):
         state_new = self.get_state()
