@@ -5,7 +5,7 @@ import random
 
 
 class Zombie(pygame.sprite.Sprite):
-    def __init__(self, pos, groups, obstacle_sprites, type):
+    def __init__(self, pos, groups, type):
         super().__init__(groups)
         self.front = 0
         self.zombie = self.load_img()
@@ -14,7 +14,6 @@ class Zombie(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(topleft=pos)
         self.fx = self.rect.centerx
         self.fy = self.rect.centery
-        self.obstacle_sprites = obstacle_sprites
         self.display_surface = pygame.display.get_surface()
         self.speed = 1
         self.step = 0

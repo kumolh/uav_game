@@ -37,12 +37,12 @@ class Level:
                 if col == 'x':
                     Tile((x,y),[self.visible_sprites, self.obstacle_sprites])
                 if col == 'p':
-                    self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
+                    # self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
                     # self.player = AI_Player((x, y), [self.visible_sprites], self.obstacle_sprites)
-                    # self.player = Player((x, y), [self.visible_sprites], self.obstacle_sprites)
+                    self.player = Player((x, y), [self.visible_sprites])
                 if '0' <= col <= '9':
                     type = random.randint(0, 1)
-                    zombie = Zombie((x, y), [self.visible_sprites], self.obstacle_sprites, type)
+                    zombie = Zombie((x, y), [self.visible_sprites], type)
                     self.zombies.append(zombie)
         self.zombie = self.zombies[0]
         self.zombie.set_target()
@@ -57,7 +57,9 @@ class Level:
         move = self.player.input()
         if move >= 0:
             self.player.move(self.player.speed)
-            self.visible_sprites.reflect(self.player, self.zombie, state, move)
+            done = self.visible_sprites.reflect(self.player, self.zombie, state, move)
+            if done:
+                self.save_data()
         self.frontground()
         for zombie in self.zombies:
             zombie.move()
@@ -67,6 +69,13 @@ class Level:
         for zombie in self.zombies:
             zombie.draw_sprites(self.player)
 
+    def save_data(self):
+        #save each <s, a, t_s, g> tuple episodicly 
+        file = open('raw_data.csv', 'w')
+        for tuple, target in zip(self.player.memory, self.player.target_state):
+            lst = list(tuple[0]) + [tuple[1], target, self.goal]
+            np.savetxt(file, [lst], delimiter=', ')
+        file.close()
 
 
 class YSortCameraGroup(pygame.sprite.Group):
@@ -284,15 +293,10 @@ class YSortCameraGroup(pygame.sprite.Group):
             player.front = 0
             player.n_game += 1
             player.rewards = 0
-            self.save_data()
+
+        return done
             # player.train_long_memory()
             
             # plot(player.plot_reward, player.mean_reward)
 
-    def save_data(self):
-        #save each <s, a, t_s, g> tuple episodicly 
-        file = open('raw_data.csv', 'w')
-        for tuple, target in zip(self.level.player.memory, self.level.player.target_state):
-            lst = list(tuple[0]) + [tuple[1], target, self.goal]
-            np.savetxt(file, [lst], delimiter=', ')
-        file.close()
+    

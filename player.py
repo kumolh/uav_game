@@ -1,10 +1,11 @@
 import pygame
 from settings import *
 import numpy as np
-from collections import deque
+# from collections import deque
+import collections
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, pos, groups, obstacle_sprites):
+    def __init__(self, pos, groups):
         super().__init__(groups)
         self.origin_image = pygame.image.load(
             'img/uav.png').convert_alpha()
@@ -19,11 +20,10 @@ class Player(pygame.sprite.Sprite):
         self.front = 0
         self.fx = self.hitbox.centerx
         self.fy = self.hitbox.centery
-        self.obstacle_sprites = obstacle_sprites
         self.state = [0.0] * 6
 
-        self.memory = deque(maxlen = MAX_MEMORY)
-        self.target_state = deque(maxLen = MAX_MEMORY)
+        self.memory = collections.deque(maxlen = MAX_MEMORY)
+        self.target_state = collections.deque()#maxLen = MAX_MEMORY)
         self.n_game = 1
         self.epsilon = 0
         self.rewards = 0
@@ -109,52 +109,11 @@ class Player(pygame.sprite.Sprite):
         self.rect.center = self.hitbox.center
         return collision
 
-    def collision(self, direction):
-        front = (self.front) % 360
-        dire = [False] * 4 #down up left right
-        if front <= 45 or front > 315: # face up
-            if self.direction.x == 1: dire[3] = True
-            elif self.direction.x == -1: dire[2] = True
-            if self.direction.y == 1: dire[0] = True
-            elif self.direction.y == -1: dire[1] = True
-        elif 135 < front <= 225: # face down
-            if self.direction.x == 1: dire[2] = True
-            elif self.direction.x == -1: dire[3] = True
-            if self.direction.y == 1: dire[1] = True
-            elif self.direction.y == -1: dire[0] = True
-        elif 225 < front <= 315: # face right
-            if self.direction.x == 1: dire[1] = True
-            elif self.direction.x == -1: dire[0] = True
-            if self.direction.y == 1: dire[2] = True
-            elif self.direction.y == -1: dire[3] = True
-        else: #face left
-            if self.direction.x == 1: dire[0] = True
-            elif self.direction.x == -1: dire[1] = True
-            if self.direction.y == 1: dire[3] = True
-            elif self.direction.y == -1: dire[2] = True
-
-        if dire[1] or dire[0]:
-            for sprite in self.obstacle_sprites:
-                if sprite.hitbox.colliderect(self.hitbox):
-                    if dire[1]:   # moving up
-                        self.hitbox.top = sprite.hitbox.bottom
-                        self.fy = self.hitbox.y   
-                    elif dire[0]:
-                        self.hitbox.bottom = sprite.hitbox.top
-                        self.fy = self.hitbox.y   
-
-        if dire[3] or dire[2]:     
-            for sprite in self.obstacle_sprites:
-                if sprite.hitbox.colliderect(self.hitbox):       
-                    if dire[3]: # moving right
-                        self.hitbox.right = sprite.hitbox.left
-                        self.fx = self.hitbox.x
-                    elif dire[2]:   # moving left
-                        self.hitbox.left = sprite.hitbox.right
-                        self.fx = self.hitbox.x
-
     def remember(self, state, action, reward, next_state, done):
         self.memory.append((state, action, reward, next_state, done))
+
+    def remember_target(self, target_state):
+        self.target_state.append(target_state)
 
     def train_short_memory(self, state, action, reward, next_state, done):
         pass
