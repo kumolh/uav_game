@@ -39,35 +39,45 @@ class Player(pygame.sprite.Sprite):
 
     def input(self):
         keys = pygame.key.get_pressed()
-
         move = 0
         if keys[pygame.K_UP]:
-            self.direction.y = -1
-        elif keys[pygame.K_DOWN]:
-            self.direction.y = 1
             move = 1
+        elif keys[pygame.K_DOWN]:
+            move = 2
+
+        if keys[pygame.K_RIGHT]:
+            move = 3
+        elif keys[pygame.K_LEFT]:
+            move = 4
+
+        dire = 0
+        if keys[ord('a')]:
+            dire = 2
+        elif keys[ord('d')]:
+            dire = 1
+        player_move = dire * 5 + move
+
+        if player_move % 5 == 1:
+            self.direction.y = -1
+        elif player_move % 5 == 2:
+            self.direction.y = 1
         else:
             self.direction.y = 0
 
-        if keys[pygame.K_RIGHT]:
+        if player_move % 5 == 3:
             self.direction.x = 1
-            move = 2
-        elif keys[pygame.K_LEFT]:
+        elif player_move % 5 == 4:
             self.direction.x = -1
-            move = 3
         else:
             self.direction.x = 0
 
-        dire = 1
-        if keys[ord('a')]:
-            self.front += 2
-            self.front %= 360
-            dire = 0
-        elif keys[ord('d')]:
+        if player_move // 5 == 1:
             self.front -= 2
             self.front %= 360
-            dire = 2
-        return dire * 4 + move
+        elif player_move // 5 == 2:
+            self.front += 2
+            self.front %= 360
+        return player_move
 
     def move(self, speed):
         """_summary_
@@ -75,6 +85,7 @@ class Player(pygame.sprite.Sprite):
         Args:
             speed (_type_): _description_
         """
+        
         if self.direction.magnitude() != 0:
             self.direction = self.direction.normalize()
     

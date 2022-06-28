@@ -66,6 +66,7 @@ class AI_Player(pygame.sprite.Sprite):
         self.epsilon = 80 - self.n_game
         final_move = 0
         if(random.randint(0, 200) < self.epsilon):
+            # collected information application
             final_move = random.randint(0, 11)
         else:
             state0 = tf.convert_to_tensor(state, dtype=tf.float32)

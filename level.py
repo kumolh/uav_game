@@ -196,7 +196,6 @@ class YSortCameraGroup(pygame.sprite.Group):
         return dis, offset, vx, vy
 
     def custom_draw(self, player):
-
         # getting the offset 
         self.offset.x = player.rect.centerx - self.half_width
         if self.offset.x < 0:
@@ -230,7 +229,6 @@ class YSortCameraGroup(pygame.sprite.Group):
             wall_pos = (2 * WIDTH - i * SCALE - 1, HALF_HEIGHT - wall_height // 2)
             
             self.display_surface.blit(wall_column, wall_pos)
-            # pygame.draw.rect(self.display_surface, (color, color, color), (WIDTH + i * SCALE, int(HEIGTH / 2 - wall_height / 2), SCALE, wall_height))
             rad += DELTA_ANGLE
     
     def get_state(self, player, zombie):

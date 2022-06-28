@@ -29,12 +29,14 @@ class RNN:
         action = []
         target_state = []
         goal = []
+        # reading raw data
         for row in data:
             state.append(np.array(row[:6]))
             action.append(int(row[6]))
             target_state.append(int(row[7]))
             goal.append(row[8])
         X_train, y_train = [], []
+        # sample and assemble data
         for i in range(0, len(row)- self.sample_fre * self.sample_fre):
             X_train.append([state[i], action[i], target_state[i]])
             y_train.append(goal[i])

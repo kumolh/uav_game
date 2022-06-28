@@ -7,25 +7,50 @@ from player import Player
 from ai_player import *
 from player_com import PlayerCom
 from zombie import Zombie
+import sys
+from stable_baselines3.common.env_checker import check_env
 
 class UAV_Env(Env):
     def __init__(self):
         super(UAV_Env, self).__init__()
-        self.action_space = spaces.Discrete(15)
+        self.action_space = spaces.MultiDiscrete([5, 3])
         self.observation_space = spaces.Box(low = -100, high = 2000, shape=(6,), dtype=np.float32)
         self.initialize()
 
     def step(self, action):
-        self.take_action(action)
+        # self.take_action(action)
+        [translate, rotate] = action
+        if translate == 1:
+            self.player.direction.y = -1
+        elif translate == 2:
+            self.player.direction.y = 1
+        else:
+            self.player.direction.y = 0
+
+        if translate == 3:
+            self.player.direction.x = 1
+        elif translate == 4:
+            self.player.direction.x = -1
+        else:
+            self.player.direction.x = 0
+
+        if rotate == 1:
+            self.player.front -= 2
+            self.player.front %= 360
+        elif rotate == 2:
+            self.player.front += 2
+            self.player.front %= 360
+        self.player.move(self.player.speed)
+
+        for zombie in self.zombies:
+            zombie.move()
         state = self.get_state()
-        reward, done = self.get_reward()
-        return state, reward, done
+        reward, done = self.get_reward(state)
+        return state, reward, done, {}
     
-    def take_action(self, action):
-        move = self.player.input()
-        if move >= 0:
-            self.player.move(self.player.speed)
-        pass
+    # def take_action(self, action):
+    #     move = self.player.input()
+    #     self.player.move(self.player.speed)
 
     def get_state(self):
         state = [0.0] * 6
@@ -33,27 +58,52 @@ class UAV_Env(Env):
             rad = np.deg2rad(90 * i + self.player.front)
             dis, _, vx, vy = self.ray_casting(self.player, rad)
             state[i] = dis
-            # [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
-            # pygame.draw.line(self.display_surface, 'blue', [x, y], [vx, vy]) 
-        # pygame.draw.circle(self.display_surface, 'black', [zombie.rect.centerx - self.offset.x, zombie.rect.centery - self.offset.y], 1.0)
         _, _, pos, distance = self.zombie.position(self.player)
         state[4] = distance
         state[5] = pos
         self.player.state = state
         return np.array(state, dtype=np.float32)
     
-    def get_reward(self):
-        pass
+    def get_reward(self, state):
+        def linear(location):
+            delta = abs(location - 30)
+            return 0.12 * (30 - delta) / 30 if delta < 30 else 0
+        def gaussian(distance):
+            return 100 * np.exp(- (distance - 64) ** 2)
+        reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
+        done = False
+        self.player.rewards += reward
+        if any(state[i] < 60 for i in range(5)):
+            done = True
+            reward = -100
+
+        if TILESIZE <= state[4] < 2 * TILESIZE and 0 < state[5] < 60:
+            done = True
+            reward = 100
+        return reward, done
 
     def initialize(self):
+        self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
+        self.clock = pygame.time.Clock()
         self.goal = -1
         self.zombies = []
+        self.running = True
         self.create_map()
         self.zombie = self.zombies[0]
         self.zombie.set_target()
         self.player.add_target(self.zombie)
+        self.offset = pygame.math.Vector2()
+        self.last_state = self.get_state()
+        self.textures = {'x': pygame.image.load('img/1.png').convert(),
+                         '2': pygame.image.load('img/2.png').convert(),
+                         'S': pygame.image.load('img/night.png').convert()
+                         }
+        self.half_width = self.world.get_size()[0] // 4
+        self.half_height = self.world.get_size()[1] // 2
+        
 
     def create_map(self):
+        self.visible_sprites = pygame.sprite.Group()
         for row_index,row in enumerate(WORLD_MAP):
             for col_index, col in enumerate(row):
                 x = col_index * TILESIZE
@@ -68,14 +118,83 @@ class UAV_Env(Env):
                     type = random.randint(0, 1)
                     zombie = Zombie((x, y), [self.visible_sprites], type)
                     self.zombies.append(zombie)
-        
 
     def render(self):
-        pass
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                pygame.quit()
+                self.running = False
+                sys.exit()
+        self.world.fill('white')
+        self.background(self.player.front)
+        self.custom_draw(self.player)
+        self.frontground()
+        pygame.display.set_caption('FPS: ' + str(int(self.clock.get_fps())))
+        pygame.display.update()
+        self.clock.tick()
+
+    def background(self, angle):
+        # 2D walls and player:
+        for sprite in self.visible_sprites:
+            # textsurface = myfont.render(str(sprite.rect.bottom), False, (0, 0, 0))
+            offset_pos = sprite.rect.topleft - self.offset
+            if 0 <= sprite.rect.right - self.offset.x and sprite.rect.left - self.offset.x <= WIDTH:
+                pygame.display.get_surface().blit(sprite.image, offset_pos)
+                # self.display_surface.blit(textsurface, offset_pos)
+
+        # 3D background
+        height, width = self.textures['S'].get_height(), self.textures['S'].get_width()
+        offset = int(angle / 360 * width)
+        sky = self.textures['S'].subsurface(offset, 0, width - offset, height // 2)
+        pygame.display.get_surface().blit(sky, (WIDTH, 0))
+        if width - offset < WIDTH:
+            sky = self.textures['S'].subsurface(0, 0, WIDTH - (width - offset), height // 2)
+            pygame.display.get_surface().blit(sky, (WIDTH + width - offset, 0))
+        pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
+
+    def custom_draw(self, player):
+        # getting the offset 
+        self.offset.x = player.rect.centerx - self.half_width
+        if self.offset.x < 0:
+            self.offset.x = 0 
+        elif player.rect.centerx > len(WORLD_MAP[0]) * TILESIZE - self.half_width:
+            self.offset.x = len(WORLD_MAP[0]) * TILESIZE - WIDTH
+        self.offset.y = player.rect.centery - self.half_height
+        if self.offset.y < 0:
+            self.offset.y = 0 
+        elif player.rect.centery > len(WORLD_MAP) * TILESIZE - self.half_height:
+            self.offset.y = len(WORLD_MAP) * TILESIZE - HEIGTH
+
+        # rx, ry, vx, vy = 0.0, 0.0, 0.0, 0.0 
+        rad = np.deg2rad(90 + player.front) - HALF_FOV
+        for i in range(NUM_RAYS):          
+            dis, offset, vx, vy = self.ray_casting(player, rad)
+            [x, y] = [player.rect.centerx - self.offset.x, player.rect.centery - self.offset.y]
+            if i == 0 or i == NUM_RAYS - 1:
+                pygame.draw.line(self.world, 'black', [x, y], [vx, vy]) 
+            dis *= np.cos((NUM_RAYS//2 - i) * DELTA_ANGLE)
+            player.distances[i] = dis
+
+            wall_height = min(HEIGTH, int(35000 / (dis + 0.001)))
+            color = 255 / (1 + dis * dis * 0.0001)
+            offset = int(offset) % TILESIZE
+
+            height, width = self.textures['x'].get_height(), self.textures['x'].get_width()
+            scale = width // TILESIZE
+            wall_column = self.textures['x'].subsurface(offset * scale, 0, scale, height)
+            wall_column = pygame.transform.scale(wall_column, (SCALE, wall_height))
+            wall_pos = (2 * WIDTH - i * SCALE - 1, HALF_HEIGHT - wall_height // 2)
+            
+            self.world.blit(wall_column, wall_pos)
+            rad += DELTA_ANGLE
+
+    def frontground(self):
+        for zombie in self.zombies:
+            zombie.draw_sprites(self.player)
 
     def reset(self):
-        # called at the initialization
-        pass
+        self.initialize()
+        return self.last_state
 
     def ray_casting(self, player, rad):
         # return the distance that the ray can go
@@ -101,8 +220,8 @@ class UAV_Env(Env):
             rx = player.rect.centerx 
             ry = player.rect.centery
             
-            while dof < DOF:
-                mx = int(rx // TILESIZE) if np.cos(rad) > 0.001 else int(rx // TILESIZE) - 1
+        while dof < DOF:
+            mx = int(rx // TILESIZE) if np.cos(rad) > 0.001 else int(rx // TILESIZE) - 1
             my = int(ry // TILESIZE) #if np.cos(rad) > 0.001 else int(ry // TILESIZE) - 1
             if 0 <= mx < MAPX and 0 <= my < MAPY and WORLD_MAP[my][mx] == 'x':
                 dof = DOF
@@ -155,3 +274,13 @@ class UAV_Env(Env):
             
         dis = min(disH, disV)
         return dis, offset, vx, vy
+
+if __name__ == '__main__':
+    game = UAV_Env()
+    check_env(game)
+    # pygame.init()
+    # pygame.display.set_caption('UAV')
+    # game.step(action=[])
+    # while game.running:
+    #     game.step(action=[])
+    #     game.render()
