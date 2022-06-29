@@ -15,10 +15,11 @@ class UAV_Env(Env):
         super(UAV_Env, self).__init__()
         self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
         self.clock = pygame.time.Clock()
+        self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
         self.observation_space = spaces.Box(low = -100, high = 2000, shape=(6,), dtype=np.float32)
-        self.initialize()
+        # self.initialize()
 
     def step(self, action):
         # self.take_action(action)
@@ -86,25 +87,19 @@ class UAV_Env(Env):
             reward = 100
         return reward, done
 
+    def get_circle_reward(self, state):
+        reward = 0
+        done = False
+        return reward, done
+
     def initialize(self):
-        self.goal = -1
-        self.zombies = []
         self.running = True
-        self.create_map()
-        self.zombie = self.zombies[0]
-        self.zombie.set_target()
-        self.player.add_target(self.zombie)
-        self.offset = pygame.math.Vector2()
-        self.last_state = self.get_state()
-        self.textures = {'x': pygame.image.load('img/1.png').convert(),
-                         '2': pygame.image.load('img/2.png').convert(),
-                         'S': pygame.image.load('img/night.png').convert()
-                         }
-        self.half_width = self.world.get_size()[0] // 4
-        self.half_height = self.world.get_size()[1] // 2
-        
+        # self.create_map()
+        self.replace_player()
 
     def create_map(self):
+        self.goal = -1
+        self.zombies = []
         self.visible_sprites = pygame.sprite.Group()
         for row_index,row in enumerate(WORLD_MAP):
             for col_index, col in enumerate(row):
@@ -120,6 +115,26 @@ class UAV_Env(Env):
                     type = random.randint(0, 1)
                     zombie = Zombie((x, y), [self.visible_sprites], type)
                     self.zombies.append(zombie)
+        self.zombie = self.zombies[0]
+        self.zombie.set_target()
+        self.player.add_target(self.zombie)
+        self.offset = pygame.math.Vector2()
+        self.last_state = self.get_state()
+        self.textures = {'x': pygame.image.load('img/1.png').convert(),
+                         '2': pygame.image.load('img/2.png').convert(),
+                         'S': pygame.image.load('img/night.png').convert()
+                         }
+        self.half_width = self.world.get_size()[0] // 4
+        self.half_height = self.world.get_size()[1] // 2
+
+    def replace_player(self):
+        r = random.randint(3 * TILESIZE, (TILE_V - 4) * TILESIZE) 
+        c = random.randint(3 * TILESIZE, (TILE_H - 4) * TILESIZE) 
+        self.player.rect.update(r, c, TILESIZE, TILESIZE)
+        # player.rect = player.init_rect.copy()
+        self.player.fx = self.player.rect.centerx
+        self.player.fy = self.player.rect.centery
+        self.player.front = 0
 
     def render(self):
         for event in pygame.event.get():
