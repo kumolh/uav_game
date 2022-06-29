@@ -16,7 +16,7 @@ class Player(pygame.sprite.Sprite):
 
         self.distances = [0] * NUM_RAYS
         self.direction = pygame.math.Vector2()
-        self.speed = 2
+        self.speed = 5
         self.front = 0
         self.fx = self.hitbox.centerx
         self.fy = self.hitbox.centery

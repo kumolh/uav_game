@@ -15,7 +15,7 @@ class Zombie(pygame.sprite.Sprite):
         self.fx = self.rect.centerx
         self.fy = self.rect.centery
         self.display_surface = pygame.display.get_surface()
-        self.speed = 1
+        self.speed = .5
         self.step = 0
         self.direction = 0
         self.is_target = False

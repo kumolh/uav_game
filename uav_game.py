@@ -13,27 +13,31 @@ from stable_baselines3.common.env_checker import check_env
 class UAV_Env(Env):
     def __init__(self):
         super(UAV_Env, self).__init__()
-        self.action_space = spaces.MultiDiscrete([5, 3])
+        self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
+        self.clock = pygame.time.Clock()
+        # self.action_space = spaces.MultiDiscrete([5, 3])
+        self.action_space = spaces.Discrete(3)
         self.observation_space = spaces.Box(low = -100, high = 2000, shape=(6,), dtype=np.float32)
         self.initialize()
 
     def step(self, action):
         # self.take_action(action)
-        [translate, rotate] = action
-        if translate == 1:
-            self.player.direction.y = -1
-        elif translate == 2:
-            self.player.direction.y = 1
-        else:
-            self.player.direction.y = 0
+        # [translate, rotate] = action
+        # if translate == 1:
+        #     self.player.direction.y = -1
+        # elif translate == 2:
+        #     self.player.direction.y = 1
+        # else:
+        #     self.player.direction.y = 0
 
-        if translate == 3:
-            self.player.direction.x = 1
-        elif translate == 4:
-            self.player.direction.x = -1
-        else:
-            self.player.direction.x = 0
-
+        # if translate == 3:
+        #     self.player.direction.x = 1
+        # elif translate == 4:
+        #     self.player.direction.x = -1
+        # else:
+        #     self.player.direction.x = 0
+        rotate = action
+        self.player.direction.y = -1
         if rotate == 1:
             self.player.front -= 2
             self.player.front %= 360
@@ -83,8 +87,6 @@ class UAV_Env(Env):
         return reward, done
 
     def initialize(self):
-        self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
-        self.clock = pygame.time.Clock()
         self.goal = -1
         self.zombies = []
         self.running = True
