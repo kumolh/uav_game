@@ -22,7 +22,6 @@ class UAV_Env(Env):
         # self.initialize()
 
     def step(self, action):
-        # self.take_action(action)
         # [translate, rotate] = action
         # if translate == 1:
         #     self.player.direction.y = -1
@@ -37,18 +36,26 @@ class UAV_Env(Env):
         #     self.player.direction.x = -1
         # else:
         #     self.player.direction.x = 0
-        rotate = action
-        self.player.direction.y = -1
-        if rotate == 1:
-            self.player.front -= 2
-            self.player.front %= 360
-        elif rotate == 2:
-            self.player.front += 2
-            self.player.front %= 360
-        self.player.move(self.player.speed)
-
+        # rotate = action
+        # self.player.direction.y = -1
+        # if rotate == 1:
+        #     self.player.front -= 2
+        #     self.player.front %= 360
+        # elif rotate == 2:
+        #     self.player.front += 2
+        #     self.player.front %= 360
+        # self.player.move(self.player.speed)
         for zombie in self.zombies:
             zombie.move()
+        vert, rotate, collision = self.get_circle_move(128)
+        if not collision:
+            self.player.direction.y = vert
+            self.player.direction.x = 1
+            self.player.front += rotate
+            self.player.front %= 360
+            self.player.move(self.player.speed)
+
+        
         state = self.get_state()
         reward, done = self.get_reward(state)
         return state, reward, done, {}
@@ -78,6 +85,7 @@ class UAV_Env(Env):
         reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
         done = False
         self.player.rewards += reward
+        self.last_state = state
         if any(state[i] < 60 for i in range(5)):
             done = True
             reward = -100
@@ -87,15 +95,61 @@ class UAV_Env(Env):
             reward = 100
         return reward, done
 
-    def get_circle_reward(self, state):
-        reward = 0
-        done = False
-        return reward, done
+    def get_circle_move(self, opt_dis):
+        vertical = 0
+        horizontal = 1 # or -1: deterministic
+        rotate = 0
+        delta_dis = opt_dis * 1.0
+        colli = False
+        for v in range(-1, 2):
+            for r in range(-1, 2):
+                collision, dis, theta = self.pseudo_move(self.player, v, horizontal, r)
+                if abs(opt_dis - dis) < delta_dis and 20 < theta < 40:
+                    vertical, rotate, colli = v, r, collision
+        return vertical, rotate, colli
+    
+    def pseudo_move(self, player, vert, hori, rotate):
+        dire = (player.front + rotate * 2) % 360
+        rad = np.deg2rad(-dire)
+        fx = player.fx - player.speed * np.sin(rad) * vert + player.speed * np.cos(rad) * hori
+        fy = player.fy + player.speed * np.cos(rad) * vert + player.speed * np.sin(rad) * hori
+        collision = True
+        ret_x = ret_y = 0
+        if not(WORLD_MAP[int(fy - TILESIZE/ 2) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy + TILESIZE/2) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(fx - TILESIZE / 2) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(fx + TILESIZE / 2) // TILESIZE] == 'x'):
+                ret_x = int(fx)
+                ret_y = int(fy)
+                collision = False
+        elif not(WORLD_MAP[int(player.hitbox.top) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(player.hitbox.bottom + 1) // TILESIZE][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(player.hitbox.y) // TILESIZE ][int(fx - TILESIZE / 2) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(player.hitbox.y) // TILESIZE ][int(fx + TILESIZE / 2) // TILESIZE] == 'x'):
+                ret_x = int(fx)
+                fy = player.hitbox.centery
+        elif not(WORLD_MAP[int(fy - TILESIZE / 2) // TILESIZE ][int(player.hitbox.x) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy +TILESIZE / 2) // TILESIZE ][int(player.hitbox.x) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(player.hitbox.left) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(player.hitbox.right + 1) // TILESIZE] == 'x'):
+                ret_y = int(fy)
+                fx = player.hitbox.centerx
+        else:
+            fx = player.hitbox.centerx
+            fy = player.hitbox.centery
+        # calculate the relative position
+        relative_pos = [self.zombie.rect.centerx - fx, self.zombie.rect.centery - fy]
+        angle = np.arctan2(-relative_pos[1], relative_pos[0])
+        if angle < 0: angle += 2 * np.pi
+        angle = (np.rad2deg(angle) - 90) % 360
+        dis = np.sqrt(sum(x ** 2 for x in relative_pos)) # relative distance
+        theta = (dire + 30 - angle) % 360 # view position
+        return collision, dis, theta
 
     def initialize(self):
         self.running = True
-        # self.create_map()
-        self.replace_player()
+        self.create_map()
+        # self.replace_player()
 
     def create_map(self):
         self.goal = -1
