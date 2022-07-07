@@ -20,7 +20,7 @@ class UAV_Env(Env):
         self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
-        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.float32)
+        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.int16)
         # self.initialize()
 
     def step(self, action):
@@ -74,7 +74,7 @@ class UAV_Env(Env):
         state[4] = distance
         state[5] = pos
         self.player.state = state
-        return np.array(state, dtype=np.float32)
+        return np.array(state, dtype=np.int16)
     
     def get_reward(self, state):
         def linear(location):
@@ -189,8 +189,8 @@ class UAV_Env(Env):
             player.fx, player.fy = player.rect.centerx, player.rect.centery
             player.front = front
         else:
-            r = random.randint(3 * TILESIZE, (TILE_V - 3) * TILESIZE) 
-            c = random.randint(3 * TILESIZE, (TILE_H - 3) * TILESIZE) 
+            r = random.randint(3 * TILESIZE, (TILE_H - 3) * TILESIZE) 
+            c = random.randint(3 * TILESIZE, (TILE_V - 3) * TILESIZE) 
             player.rect.update(r, c, TILESIZE, TILESIZE)
             # player.rect = player.init_rect.copy()
             player.fx = player.rect.centerx
@@ -281,9 +281,9 @@ class UAV_Env(Env):
             zombie.draw_sprites(self.player)
 
     def reset(self):
-        r, c = self.random_place_target(self.zombie)
-        # if self.goal in [1, 2, 3]:
-        self.replace_player(self.player, r, c, self.goal)
+        # r, c = self.random_place_target(self.zombie)
+        # self.replace_player(self.player, r, c, self.goal)
+        self.create_map()
         self.last_state = self.get_state()
         return self.get_state()
 
