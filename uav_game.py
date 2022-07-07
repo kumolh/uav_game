@@ -20,7 +20,7 @@ class UAV_Env(Env):
         self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
-        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.int16)
+        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.float16)
         # self.initialize()
 
     def step(self, action):
@@ -72,28 +72,34 @@ class UAV_Env(Env):
         state[2], state[3] = self.zombie.fx, self.zombie.fy
         _, _, pos, distance = self.zombie.position(self.player)
         state[4] = distance
-        state[5] = pos
+        state[5] = pos - 30
         self.player.state = state
-        return np.array(state, dtype=np.int16)
+        return np.array(state, dtype=np.float16)
     
     def get_reward(self, state):
         def linear(location):
-            delta = abs(location - 30)
-            return 0.12 * (30 - delta) / 30 if delta < 30 else 0
+            # abs(location) 0 - 30: + ; 30 - 180: -;
+            delta = abs(location)
+            return 50 * (180 - delta) / 180
+        
         def gaussian(distance):
             return 100 * np.exp(-0.001*(distance - 64) ** 2)
+
         reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
         done = False
         self.player.rewards += reward
         self.last_state = state
-        not_collision = 2 * TILESIZE < state[0] < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] < (TILE_V - 2) * TILESIZE
-        if not not_collision:
+        collision_wall = not(2 * TILESIZE < state[0] < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] < (TILE_V - 2) * TILESIZE)
+        collision_target = state[4] < TILESIZE
+
+        if collision_wall or collision_target:
             done = True
-            reward = -100
+            reward = -50
 
         if TILESIZE <= state[4] < 2 * TILESIZE and 0 < state[5] < 60:
             done = True
-            reward = 100
+            reward = 50
+
         return reward, done
 
     def get_follow_move(self, opt_dis, hori=1):
