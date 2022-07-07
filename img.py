@@ -22,12 +22,12 @@ def location_reward():
     ax = fig.add_subplot(111, projection='3d')
     x1 = y1 = np.arange(-100, 100, 1) #np.hstack([np.arange(-100, -32, 1), np.arange(32, 100, 1)])
     X, Y = np.meshgrid(x1, y1)
-    z1 = 100 * np.exp(-.0006 * (X**2 + Y**2))
+    z1 = 100 * np.exp(-.06 * (X**2 + Y**2))
     pivot = 100 * np.exp(-.0006 * 32**2)
-    for i in range(len(z1)):
-        for j in range(len(z1[0])):
-            if X[i][j] ** 2 + Y[i][j] ** 2 <= 32 ** 2:
-                z1[i][j] = pivot
+    # for i in range(len(z1)):
+    #     for j in range(len(z1[0])):
+    #         if X[i][j] ** 2 + Y[i][j] ** 2 <= 32 ** 2:
+    #             z1[i][j] = pivot
     surf = ax.plot_surface(X, Y, z1, cmap=cm.coolwarm)
     # Customize the z axis.
     ax.set_zlim(-5, 55)
@@ -58,4 +58,5 @@ def icon_compress(path, name):
     img.save(name)
 
 if __name__ == '__main__':
-    icon_compress('img/zombie/fox.png', 'fox.png')
+    # icon_compress('img/zombie/fox.png', 'fox.png')
+    location_reward()

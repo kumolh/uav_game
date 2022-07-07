@@ -11,51 +11,46 @@ import sys
 from stable_baselines3.common.env_checker import check_env
 
 class UAV_Env(Env):
-    def __init__(self):
+    def __init__(self, goal=0, record=False):
         super(UAV_Env, self).__init__()
         self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
         self.clock = pygame.time.Clock()
+        self.goal = goal
+        self.record = record
         self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
-        self.observation_space = spaces.Box(low = -100, high = 2000, shape=(6,), dtype=np.float32)
+        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.float32)
         # self.initialize()
 
     def step(self, action):
-        # [translate, rotate] = action
-        # if translate == 1:
-        #     self.player.direction.y = -1
-        # elif translate == 2:
-        #     self.player.direction.y = 1
-        # else:
-        #     self.player.direction.y = 0
-
-        # if translate == 3:
-        #     self.player.direction.x = 1
-        # elif translate == 4:
-        #     self.player.direction.x = -1
-        # else:
-        #     self.player.direction.x = 0
-        # rotate = action
-        # self.player.direction.y = -1
-        # if rotate == 1:
-        #     self.player.front -= 2
-        #     self.player.front %= 360
-        # elif rotate == 2:
-        #     self.player.front += 2
-        #     self.player.front %= 360
-        # self.player.move(self.player.speed)
-        for zombie in self.zombies:
-            zombie.move()
-        vert, rotate, collision = self.get_circle_move(128)
-        if not collision:
-            self.player.direction.y = vert
-            self.player.direction.x = 1
+        if self.goal == 0:
+            rotate = action
+            self.player.direction.y = -1
+            if rotate == 1:
+                self.player.front -= 2
+                self.player.front %= 360
+            elif rotate == 2:
+                self.player.front += 2
+                self.player.front %= 360
+        elif self.goal == -1:
+            self.player.input()
+        else:
+            if self.goal == 1:
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=1)
+            elif self.goal == 2:
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=-1)
+            elif self.goal == 3:
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=0)
+            self.player.direction.x = horizontal
+            self.player.direction.y = vertical
             self.player.front += rotate
             self.player.front %= 360
-            self.player.move(self.player.speed)
 
-        
+        if self.goal == 3: 
+            self.zombie.move()
+
+        self.player.move(self.player.speed)
         state = self.get_state()
         reward, done = self.get_reward(state)
         return state, reward, done, {}
@@ -63,13 +58,18 @@ class UAV_Env(Env):
     # def take_action(self, action):
     #     move = self.player.input()
     #     self.player.move(self.player.speed)
+    def remember(self, state, action):
+        if not self.record: return
+        self.memory.append((state, action))
 
     def get_state(self):
         state = [0.0] * 6
-        for i in range(4):
-            rad = np.deg2rad(90 * i + self.player.front)
-            dis, _, vx, vy = self.ray_casting(self.player, rad)
-            state[i] = dis
+        # for i in range(4):
+        #     rad = np.deg2rad(90 * i + self.player.front)
+        #     dis, _, vx, vy = self.ray_casting(self.player, rad)
+        #     state[i] = dis
+        state[0], state[1] = self.player.fx, self.player.fy
+        state[2], state[3] = self.zombie.fx, self.zombie.fy
         _, _, pos, distance = self.zombie.position(self.player)
         state[4] = distance
         state[5] = pos
@@ -81,12 +81,13 @@ class UAV_Env(Env):
             delta = abs(location - 30)
             return 0.12 * (30 - delta) / 30 if delta < 30 else 0
         def gaussian(distance):
-            return 100 * np.exp(- (distance - 64) ** 2)
+            return 100 * np.exp(-0.001*(distance - 64) ** 2)
         reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
         done = False
         self.player.rewards += reward
         self.last_state = state
-        if any(state[i] < 60 for i in range(5)):
+        not_collision = 2 * TILESIZE < state[0] < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] < (TILE_V - 2) * TILESIZE
+        if not not_collision:
             done = True
             reward = -100
 
@@ -95,18 +96,23 @@ class UAV_Env(Env):
             reward = 100
         return reward, done
 
-    def get_circle_move(self, opt_dis):
-        vertical = 0
-        horizontal = 1 # or -1: deterministic
-        rotate = 0
-        delta_dis = opt_dis * 1.0
+    def get_follow_move(self, opt_dis, hori=1):
+        horizontal = hori # -1: left; 0: null; 1: right
+        vertical = 0 # -1: up; 0: null; 1: down
+        rotate = 0 # -1: anti-clock wise; 0: null; 1: clock wise
+        delta_dis = opt_dis * .5
         colli = False
         for v in range(-1, 2):
             for r in range(-1, 2):
                 collision, dis, theta = self.pseudo_move(self.player, v, horizontal, r)
                 if abs(opt_dis - dis) < delta_dis and 20 < theta < 40:
+                    # delta_dis = abs(opt_dis - dis)
                     vertical, rotate, colli = v, r, collision
-        return vertical, rotate, colli
+        # 3 x 3 x 3
+        # 100 010 001 means right, null, anti-clockwise
+        # action = 1 << (horizontal + 7) + 1 << (vertical + 4) + 1 << (rotate + 1)
+        # return action if not colli else 0
+        return (horizontal, vertical, rotate) #if not colli else (0, 0, 0)
     
     def pseudo_move(self, player, vert, hori, rotate):
         dire = (player.front + rotate * 2) % 360
@@ -114,29 +120,11 @@ class UAV_Env(Env):
         fx = player.fx - player.speed * np.sin(rad) * vert + player.speed * np.cos(rad) * hori
         fy = player.fy + player.speed * np.cos(rad) * vert + player.speed * np.sin(rad) * hori
         collision = True
-        ret_x = ret_y = 0
-        if not(WORLD_MAP[int(fy - TILESIZE/ 2) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy + TILESIZE/2) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy) // TILESIZE][int(fx - TILESIZE / 2) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy) // TILESIZE][int(fx + TILESIZE / 2) // TILESIZE] == 'x'):
-                ret_x = int(fx)
-                ret_y = int(fy)
-                collision = False
-        elif not(WORLD_MAP[int(player.hitbox.top) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(player.hitbox.bottom + 1) // TILESIZE][int(fx) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(player.hitbox.y) // TILESIZE ][int(fx - TILESIZE / 2) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(player.hitbox.y) // TILESIZE ][int(fx + TILESIZE / 2) // TILESIZE] == 'x'):
-                ret_x = int(fx)
-                fy = player.hitbox.centery
-        elif not(WORLD_MAP[int(fy - TILESIZE / 2) // TILESIZE ][int(player.hitbox.x) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy +TILESIZE / 2) // TILESIZE ][int(player.hitbox.x) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy) // TILESIZE][int(player.hitbox.left) // TILESIZE] == 'x' or \
-                WORLD_MAP[int(fy) // TILESIZE][int(player.hitbox.right + 1) // TILESIZE] == 'x'):
-                ret_y = int(fy)
-                fx = player.hitbox.centerx
-        else:
-            fx = player.hitbox.centerx
-            fy = player.hitbox.centery
+        if not(WORLD_MAP[int(fy - TILESIZE) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy + TILESIZE) // TILESIZE ][int(fx) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(fx - TILESIZE) // TILESIZE] == 'x' or \
+                WORLD_MAP[int(fy) // TILESIZE][int(fx + TILESIZE) // TILESIZE] == 'x'):
+            collision = False
         # calculate the relative position
         relative_pos = [self.zombie.rect.centerx - fx, self.zombie.rect.centery - fy]
         angle = np.arctan2(-relative_pos[1], relative_pos[0])
@@ -152,7 +140,7 @@ class UAV_Env(Env):
         # self.replace_player()
 
     def create_map(self):
-        self.goal = -1
+        # self.goal = 0
         self.zombies = []
         self.visible_sprites = pygame.sprite.Group()
         for row_index,row in enumerate(WORLD_MAP):
@@ -162,8 +150,6 @@ class UAV_Env(Env):
                 if col == 'x':
                     Tile((x,y),[self.visible_sprites])
                 if col == 'p':
-                    # self.player = PlayerCom((x, y), [self.visible_sprites], self.obstacle_sprites)
-                    # self.player = AI_Player((x, y), [self.visible_sprites], self.obstacle_sprites)
                     self.player = Player((x, y), [self.visible_sprites])
                 if '0' <= col <= '9':
                     type = random.randint(0, 1)
@@ -180,15 +166,36 @@ class UAV_Env(Env):
                          }
         self.half_width = self.world.get_size()[0] // 4
         self.half_height = self.world.get_size()[1] // 2
+        self.memory = collections.deque(maxlen = MAX_MEMORY)
 
-    def replace_player(self):
-        r = random.randint(3 * TILESIZE, (TILE_V - 4) * TILESIZE) 
-        c = random.randint(3 * TILESIZE, (TILE_H - 4) * TILESIZE) 
-        self.player.rect.update(r, c, TILESIZE, TILESIZE)
+    def random_place_target(self, sprite: pygame.sprite.Sprite):
+        r = random.randint(5 * TILESIZE, (TILE_H - 6) * TILESIZE) 
+        c = random.randint(5 * TILESIZE, (TILE_V - 6) * TILESIZE) 
+        sprite.rect.update(r, c, TILESIZE, TILESIZE)
         # player.rect = player.init_rect.copy()
-        self.player.fx = self.player.rect.centerx
-        self.player.fy = self.player.rect.centery
-        self.player.front = 0
+        sprite.fx = sprite.rect.centerx
+        sprite.fy = sprite.rect.centery
+        sprite.front = 0
+        return r, c
+    
+    def replace_player(self, player, target_r, target_c, goal):
+        if goal in [1, 2, 3]:
+            all_direction = [[0, 2], [0, -2], [2, 0], [-2, 0]] # right, left, bottom, top
+            all_front = [0, 180, 90, -90]
+            rand_d = random.randint(0, 3)
+            direction = all_direction[rand_d]
+            front = all_front[rand_d]
+            player.rect.update(target_r + direction[0] * TILESIZE, target_c + direction[1]* TILESIZE, TILESIZE, TILESIZE)
+            player.fx, player.fy = player.rect.centerx, player.rect.centery
+            player.front = front
+        else:
+            r = random.randint(3 * TILESIZE, (TILE_V - 3) * TILESIZE) 
+            c = random.randint(3 * TILESIZE, (TILE_H - 3) * TILESIZE) 
+            player.rect.update(r, c, TILESIZE, TILESIZE)
+            # player.rect = player.init_rect.copy()
+            player.fx = player.rect.centerx
+            player.fy = player.rect.centery
+            player.front = 0
 
     def render(self):
         for event in pygame.event.get():
@@ -235,6 +242,16 @@ class UAV_Env(Env):
             self.offset.y = 0 
         elif player.rect.centery > len(WORLD_MAP) * TILESIZE - self.half_height:
             self.offset.y = len(WORLD_MAP) * TILESIZE - HEIGTH
+        
+        mx, my = int(self.player.fx) // TILESIZE, int(self.player.fy) // TILESIZE
+        pygame.font.init()
+        myfont = pygame.font.SysFont('Comic Sans MS', 10)
+        for i in range(mx - 5, mx + 5):
+            for j in range(my - 5, my + 6):
+                text = myfont.render('(' + str(j) + ' ,' + str(i) + ')', True, (0, 0, 0))
+                rect1 = text.get_rect()
+                rect1.center = (i * TILESIZE - self.offset.x, j * TILESIZE - self.offset.y)
+                self.world.blit(text, rect1)
 
         # rx, ry, vx, vy = 0.0, 0.0, 0.0, 0.0 
         rad = np.deg2rad(90 + player.front) - HALF_FOV
@@ -264,8 +281,11 @@ class UAV_Env(Env):
             zombie.draw_sprites(self.player)
 
     def reset(self):
-        self.initialize()
-        return self.last_state
+        r, c = self.random_place_target(self.zombie)
+        # if self.goal in [1, 2, 3]:
+        self.replace_player(self.player, r, c, self.goal)
+        self.last_state = self.get_state()
+        return self.get_state()
 
     def ray_casting(self, player, rad):
         # return the distance that the ray can go
