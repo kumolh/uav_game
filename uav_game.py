@@ -20,21 +20,27 @@ class UAV_Env(Env):
         self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
-        self.observation_space = spaces.Box(low = 0, high = TILESIZE * max(MAPX, MAPY), shape=(6,), dtype=np.float16)
+        self.observation_space = spaces.Box(low = 0, high = 10, shape=(6,), dtype=np.float32)
         # self.initialize()
 
     def step(self, action):
+        move = 0
+        # 3 * 3 * 3 = 27 actions
+        # action % 3 = 0, 1, 2: rotation
+        # (action // 3) % 3: horizontal
+        # (action // 9) % 3: vertival
+        # vectical * 9 + horizontal * 3 + rotation = action
         if self.goal == 0:
-            rotate = action
+            move = action
             self.player.direction.y = -1
-            if rotate == 1:
+            if move == 1:
                 self.player.front -= 2
                 self.player.front %= 360
-            elif rotate == 2:
+            elif move == 2:
                 self.player.front += 2
                 self.player.front %= 360
         elif self.goal == -1:
-            self.player.input()
+            move = self.player.input()
         else:
             if self.goal == 1:
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=1)
@@ -42,18 +48,19 @@ class UAV_Env(Env):
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=-1)
             elif self.goal == 3:
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=0)
+            move = vertical * 9 + horizontal * 3 + rotate
             self.player.direction.x = horizontal
             self.player.direction.y = vertical
             self.player.front += rotate
             self.player.front %= 360
 
-        if self.goal == 3: 
-            self.zombie.move()
+        # if self.goal >= 0: 
+        self.zombie.move()
 
         self.player.move(self.player.speed)
         state = self.get_state()
         reward, done = self.get_reward(state)
-        return state, reward, done, {}
+        return state, reward, done, {'action': move}
     
     # def take_action(self, action):
     #     move = self.player.input()
@@ -68,19 +75,19 @@ class UAV_Env(Env):
         #     rad = np.deg2rad(90 * i + self.player.front)
         #     dis, _, vx, vy = self.ray_casting(self.player, rad)
         #     state[i] = dis
-        state[0], state[1] = self.player.fx, self.player.fy
-        state[2], state[3] = self.zombie.fx, self.zombie.fy
+        state[0], state[1] = self.player.fx / 200, self.player.fy / 200
+        state[2], state[3] = self.zombie.fx / 200, self.zombie.fy / 200
         _, _, pos, distance = self.zombie.position(self.player)
-        state[4] = distance
-        state[5] = pos - 30
+        state[4] = distance / 200
+        state[5] = ((pos - 30) % 360) / 36
         self.player.state = state
-        return np.array(state, dtype=np.float16)
+        return np.array(state, dtype=np.float32)
     
     def get_reward(self, state):
         def linear(location):
             # abs(location) 0 - 30: + ; 30 - 180: -;
-            delta = abs(location)
-            return 50 * (180 - delta) / 180
+            delta = location if location < 5 else 10 - location
+            return 10 * (5 - delta)
         
         def gaussian(distance):
             return 100 * np.exp(-0.001*(distance - 64) ** 2)
@@ -89,8 +96,8 @@ class UAV_Env(Env):
         done = False
         self.player.rewards += reward
         self.last_state = state
-        collision_wall = not(2 * TILESIZE < state[0] < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] < (TILE_V - 2) * TILESIZE)
-        collision_target = state[4] < TILESIZE
+        collision_wall = not(2 * TILESIZE < state[0] * 200 < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] * 200 < (TILE_V - 2) * TILESIZE)
+        collision_target = state[4] * 200 < TILESIZE
 
         if collision_wall or collision_target:
             done = True
@@ -287,9 +294,9 @@ class UAV_Env(Env):
             zombie.draw_sprites(self.player)
 
     def reset(self):
-        # r, c = self.random_place_target(self.zombie)
-        # self.replace_player(self.player, r, c, self.goal)
-        self.create_map()
+        r, c = self.random_place_target(self.zombie)
+        self.replace_player(self.player, r, c, self.goal)
+        # self.create_map()
         self.last_state = self.get_state()
         return self.get_state()
 

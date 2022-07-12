@@ -39,42 +39,41 @@ class Player(pygame.sprite.Sprite):
 
     def input(self):
         keys = pygame.key.get_pressed()
-        move = 0
+        horizontal = vertical = rotate = 0
         if keys[pygame.K_UP]:
-            move = 1
+            vertical = 1
         elif keys[pygame.K_DOWN]:
-            move = 2
+            vertical = 2
 
         if keys[pygame.K_RIGHT]:
-            move = 3
+            horizontal = 1
         elif keys[pygame.K_LEFT]:
-            move = 4
+            horizontal = 2
 
-        dire = 0
         if keys[ord('a')]:
-            dire = 2
+            rotate = 2
         elif keys[ord('d')]:
-            dire = 1
-        player_move = dire * 5 + move
+            rotate = 1
+        player_move = vertical * 9 + horizontal * 3 + rotate
 
-        if player_move % 5 == 1:
+        if vertical == 1:
             self.direction.y = -1
-        elif player_move % 5 == 2:
+        elif vertical == 2:
             self.direction.y = 1
         else:
             self.direction.y = 0
 
-        if player_move % 5 == 3:
+        if horizontal == 1:
             self.direction.x = 1
-        elif player_move % 5 == 4:
+        elif horizontal == 2:
             self.direction.x = -1
         else:
             self.direction.x = 0
 
-        if player_move // 5 == 1:
+        if rotate == 1:
             self.front -= 2
             self.front %= 360
-        elif player_move // 5 == 2:
+        elif rotate == 2:
             self.front += 2
             self.front %= 360
         return player_move
