@@ -180,6 +180,28 @@ class UAV_Env(Env):
         self.half_width = self.world.get_size()[0] // 4
         self.half_height = self.world.get_size()[1] // 2
         self.memory = collections.deque(maxlen = MAX_MEMORY)
+        self.kart = pygame.surfarray.array3d(pygame.image.load('img/MarioKart.png'))
+        
+
+    def floor_casting(self, file_name=''):
+        
+        halfvres = 100
+        hres = 120
+        frame = np.ones([hres, halfvres, 3])
+        posx, posy, rot = self.player.fx / 200.0, self.player.fy / 200.0, np.deg2rad(self.player.front)
+        mod = hres // 60
+        ns = halfvres/((halfvres+0.1-np.linspace(0, halfvres, halfvres))) # depth
+        # shade = 0.4 + 0.6*(np.linspace(0, halfvres, halfvres)/halfvres)
+        # shade = np.dstack((shade, shade, shade))
+        for i in range(hres):
+            rot_i = rot + np.deg2rad(i/mod - 30)
+            sin, cos, cos2 = np.sin(rot_i), np.cos(rot_i), np.cos(np.deg2rad(i/mod-30))
+            xs, ys = posx+ns*cos/cos2, posy+ns*sin/cos2
+            xxs, yys = (xs/30%1*1023).astype('int'), (ys/30%1*1023).astype('int')
+            frame[i] = self.kart[np.flip(xxs), np.flip(yys)]/255 # * shade
+        surf = pygame.surfarray.make_surface(frame*255)
+        surf = pygame.transform.scale(surf, (WIDTH, HEIGTH // 2))
+        self.world.blit(surf, (WIDTH, HEIGTH // 2))
 
     def random_place_target(self, sprite: pygame.sprite.Sprite):
         r = random.randint(5 * TILESIZE, (TILE_H - 6) * TILESIZE) 
@@ -241,7 +263,9 @@ class UAV_Env(Env):
         if width - offset < WIDTH:
             sky = self.textures['S'].subsurface(0, 0, WIDTH - (width - offset), height // 2)
             pygame.display.get_surface().blit(sky, (WIDTH + width - offset, 0))
-        pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
+        # floor
+        # pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
+        self.floor_casting()
 
     def custom_draw(self, player):
         # getting the offset 

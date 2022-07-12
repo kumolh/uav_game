@@ -69,7 +69,7 @@ def read_data():
 if __name__ == '__main__':
     rand = torch.rand(1, 20, 7)
     # 5 is the number of sample, 20: sequence length, 7: feature dimension
-    rnn = RNN(7, 64, 2, 4)
+    rnn = RNN(7, 64, 1, 4)
     # out = rnn(rand)[:, -1, :] # (5, 20, 4) 5: num of sample/ batch size; 20, each operation output; 4: possibility distributions of 4 outcomes
     # print(out)
     X_train, y_train = read_data()
