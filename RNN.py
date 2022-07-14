@@ -1,5 +1,3 @@
-from turtle import forward
-from nbformat import read
 import torch
 import torch.nn as nn
 import numpy as np

@@ -9,6 +9,8 @@ from player_com import PlayerCom
 from zombie import Zombie
 import sys
 from stable_baselines3.common.env_checker import check_env
+import torch
+from RNN import RNN
 
 class UAV_Env(Env):
     def __init__(self, goal=0, record=False):
@@ -17,6 +19,8 @@ class UAV_Env(Env):
         self.clock = pygame.time.Clock()
         self.goal = goal
         self.record = record
+        self.pred_model = torch.load('rnn_model.pt')
+        self.steps = 0
         self.create_map()
         # self.action_space = spaces.MultiDiscrete([5, 3])
         self.action_space = spaces.Discrete(3)
@@ -25,13 +29,22 @@ class UAV_Env(Env):
 
     def step(self, action):
         move = 0
+        self.steps += 1
         # 3 * 3 * 3 = 27 actions
         # action % 3 = 0, 1, 2: rotation
         # (action // 3) % 3: horizontal
         # (action // 9) % 3: vertival
         # vectical * 9 + horizontal * 3 + rotation = action
+        
+        if self.goal == -1 and self.steps >= Sequence_length:
+            sequence = np.asarray(self.memory)
+            sequence = torch.from_numpy(sequence).float()
+            sequence = sequence[None, :] # add batch dimension
+            prediction = self.pred_model(sequence)[:, -1, :]
+            goal = torch.argmax(prediction)
+            print('Guessed goal is: ' + str(goal))
         if self.goal == 0:
-            move = action
+            move = action + 9 # each time the uav must forward a step
             self.player.direction.y = -1
             if move == 1:
                 self.player.front -= 2
@@ -40,7 +53,7 @@ class UAV_Env(Env):
                 self.player.front += 2
                 self.player.front %= 360
         elif self.goal == -1:
-            move = self.player.input()
+            move = action #self.player.input()
         else:
             if self.goal == 1:
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=1)
@@ -48,14 +61,21 @@ class UAV_Env(Env):
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=-1)
             elif self.goal == 3:
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=0)
-            move = vertical * 9 + horizontal * 3 + rotate
+            v = h = r = 0
+            if vertical == -1: v = 1
+            elif vertical == 1: v = 2
+            if horizontal == -1: h = 1
+            elif horizontal == 1: h = 2
+            if rotate == -1: r = 1
+            elif rotate == 1: r = 2
+            move = v * 9 + h * 3 + r
             self.player.direction.x = horizontal
             self.player.direction.y = vertical
             self.player.front += rotate
             self.player.front %= 360
 
         # if self.goal >= 0: 
-        self.zombie.move()
+        # self.zombie.move()
 
         self.player.move(self.player.speed)
         state = self.get_state()
@@ -67,7 +87,8 @@ class UAV_Env(Env):
     #     self.player.move(self.player.speed)
     def remember(self, state, action):
         if not self.record: return
-        self.memory.append((state, action))
+        state_action = np.append(state, action)
+        self.memory.append(state_action)
 
     def get_state(self):
         state = [0.0] * 6
@@ -179,7 +200,8 @@ class UAV_Env(Env):
                          }
         self.half_width = self.world.get_size()[0] // 4
         self.half_height = self.world.get_size()[1] // 2
-        self.memory = collections.deque(maxlen = MAX_MEMORY)
+        if self.record: self.memory = collections.deque(maxlen=MAX_MEMORY)
+        else: self.memory = collections.deque(maxlen=Sequence_length)
         self.kart = pygame.surfarray.array3d(pygame.image.load('img/MarioKart.png'))
         
 
@@ -188,7 +210,7 @@ class UAV_Env(Env):
         halfvres = 100
         hres = 120
         frame = np.ones([hres, halfvres, 3])
-        posx, posy, rot = self.player.fx / 200.0, self.player.fy / 200.0, np.deg2rad(self.player.front)
+        posx, posy, rot = self.player.fx / 200.0, self.player.fy / 200.0, np.deg2rad(-self.player.front - 90)
         mod = hres // 60
         ns = halfvres/((halfvres+0.1-np.linspace(0, halfvres, halfvres))) # depth
         # shade = 0.4 + 0.6*(np.linspace(0, halfvres, halfvres)/halfvres)
@@ -264,8 +286,8 @@ class UAV_Env(Env):
             sky = self.textures['S'].subsurface(0, 0, WIDTH - (width - offset), height // 2)
             pygame.display.get_surface().blit(sky, (WIDTH + width - offset, 0))
         # floor
-        # pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
-        self.floor_casting()
+        pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
+        # self.floor_casting()
 
     def custom_draw(self, player):
         # getting the offset 
@@ -321,6 +343,7 @@ class UAV_Env(Env):
         r, c = self.random_place_target(self.zombie)
         self.replace_player(self.player, r, c, self.goal)
         # self.create_map()
+        self.steps = 0
         self.last_state = self.get_state()
         return self.get_state()
 

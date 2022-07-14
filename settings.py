@@ -8,6 +8,7 @@ FPS      = 120
 TILESIZE = 64
 # MAPX = MAPY = 20
 DOF = 20
+Sequence_length = 20
 
 FOV = math.pi / 3
 HALF_FOV = FOV / 2
