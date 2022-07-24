@@ -40,16 +40,16 @@ class UAV_Env(Env):
             sequence = np.asarray(self.memory)
             sequence = torch.from_numpy(sequence).float()
             sequence = sequence[None, :] # add batch dimension
-            prediction = self.pred_model(sequence)[:, -1, :]
-            goal = torch.argmax(prediction)
-            print('Guessed goal is: ' + str(goal))
+            # prediction = self.pred_model(sequence)[:, -1, :]
+            # goal = torch.argmax(prediction)
+            # print('Guessed goal is: ' + str(goal))
         if self.goal == 0:
-            move = action + 9 # each time the uav must forward a step
+            move = action + 9# each time the uav must forward a step
             self.player.direction.y = -1
-            if move == 1:
+            if action == 1:
                 self.player.front -= 2
                 self.player.front %= 360
-            elif move == 2:
+            elif action == 2:
                 self.player.front += 2
                 self.player.front %= 360
         elif self.goal == -1:
@@ -75,7 +75,8 @@ class UAV_Env(Env):
             self.player.front %= 360
 
         # if self.goal >= 0: 
-        # self.zombie.move()
+        self.zombie.move()
+
 
         self.player.move(self.player.speed)
         state = self.get_state()
@@ -117,7 +118,7 @@ class UAV_Env(Env):
         done = False
         self.player.rewards += reward
         self.last_state = state
-        collision_wall = not(2 * TILESIZE < state[0] * 200 < (TILE_H - 2) * TILESIZE and 2 * TILESIZE < state[1] * 200 < (TILE_V - 2) * TILESIZE)
+        collision_wall = not(1.5 * TILESIZE < state[0] * 200 < (TILE_H - 1.5) * TILESIZE and 1.5 * TILESIZE < state[1] * 200 < (TILE_V - 1.5) * TILESIZE)
         collision_target = state[4] * 200 < TILESIZE
 
         if collision_wall or collision_target:
@@ -286,8 +287,8 @@ class UAV_Env(Env):
             sky = self.textures['S'].subsurface(0, 0, WIDTH - (width - offset), height // 2)
             pygame.display.get_surface().blit(sky, (WIDTH + width - offset, 0))
         # floor
-        pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
-        # self.floor_casting()
+        # pygame.draw.rect(pygame.display.get_surface(), (100, 100, 100), (WIDTH, HEIGTH / 2, WIDTH, HEIGTH))
+        self.floor_casting()
 
     def custom_draw(self, player):
         # getting the offset 
@@ -340,9 +341,9 @@ class UAV_Env(Env):
             zombie.draw_sprites(self.player)
 
     def reset(self):
-        r, c = self.random_place_target(self.zombie)
-        self.replace_player(self.player, r, c, self.goal)
-        # self.create_map()
+        # r, c = self.random_place_target(self.zombie)
+        # self.replace_player(self.player, r, c, self.goal)
+        self.create_map()
         self.steps = 0
         self.last_state = self.get_state()
         return self.get_state()
