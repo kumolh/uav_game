@@ -11,11 +11,13 @@ import sys
 from stable_baselines3.common.env_checker import check_env
 import torch
 from RNN import RNN
+from a_star import *
 
 class UAV_Env(Env):
     def __init__(self, goal=0, record=False):
         super(UAV_Env, self).__init__()
         self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
+        self.mini_world = pygame.Surface((MAPX * MINI_SCALE, MAPY * MINI_SCALE))
         self.clock = pygame.time.Clock()
         self.goal = goal
         self.record = record
@@ -36,14 +38,14 @@ class UAV_Env(Env):
         # (action // 9) % 3: vertival
         # vectical * 9 + horizontal * 3 + rotation = action
         
-        if self.goal == -1 and self.steps >= Sequence_length:
+        if self.goal == -1 and len(self.memory) >= SEQ_LEN:
             sequence = np.asarray(self.memory)
             sequence = torch.from_numpy(sequence).float()
             sequence = sequence[None, :] # add batch dimension
-            # prediction = self.pred_model(sequence)[:, -1, :]
-            # goal = torch.argmax(prediction)
-            # print('Guessed goal is: ' + str(goal))
-        if self.goal == 0:
+            prediction = self.pred_model(sequence)
+            goal = torch.argmax(prediction)
+            print('Guessed goal is: {}'.format(int(goal)))
+        if self.goal == 0 or self.goal == 4:
             move = action + 9# each time the uav must forward a step
             self.player.direction.y = -1
             if action == 1:
@@ -62,32 +64,27 @@ class UAV_Env(Env):
             elif self.goal == 3:
                 horizontal, vertical, rotate = self.get_follow_move(128, hori=0)
             v = h = r = 0
-            if vertical == -1: v = 1
-            elif vertical == 1: v = 2
-            if horizontal == -1: h = 1
-            elif horizontal == 1: h = 2
-            if rotate == -1: r = 1
-            elif rotate == 1: r = 2
+            if vertical == -1: v = 1 #moving up
+            elif vertical == 1: v = 2 # moving down
+            if horizontal == -1: h = 1 # moving left
+            elif horizontal == 1: h = 2 # moving right
+            if rotate == -1: r = 1 # turn left
+            elif rotate == 1: r = 2 # trun right
             move = v * 9 + h * 3 + r
             self.player.direction.x = horizontal
             self.player.direction.y = vertical
             self.player.front += rotate
             self.player.front %= 360
 
-        # if self.goal >= 0: 
-        self.zombie.move()
-
+        if self.goal >= 0: 
+            self.zombie.move()
 
         self.player.move(self.player.speed)
         state = self.get_state()
         reward, done = self.get_reward(state)
         return state, reward, done, {'action': move}
     
-    # def take_action(self, action):
-    #     move = self.player.input()
-    #     self.player.move(self.player.speed)
     def remember(self, state, action):
-        if not self.record: return
         state_action = np.append(state, action)
         self.memory.append(state_action)
 
@@ -201,9 +198,13 @@ class UAV_Env(Env):
                          }
         self.half_width = self.world.get_size()[0] // 4
         self.half_height = self.world.get_size()[1] // 2
-        if self.record: self.memory = collections.deque(maxlen=MAX_MEMORY)
-        else: self.memory = collections.deque(maxlen=Sequence_length)
+        if self.record: self.memory = collections.deque(maxlen=MAX_MEMORY) # as much as possible
+        else: self.memory = collections.deque(maxlen=SEQ_LEN) # fixed window size
         self.kart = pygame.surfarray.array3d(pygame.image.load('img/MarioKart.png'))
+        x0, y0 = self.player.rect.center
+        x0, y0 = x0 // TILESIZE, y0 // TILESIZE 
+        x1, y1 = self.zombie.fx // TILESIZE, self.zombie.fy // TILESIZE
+        self.path = a_star(WORLD_MAP, y0, x0, y1, x1)
         
 
     def floor_casting(self, file_name=''):
@@ -265,6 +266,7 @@ class UAV_Env(Env):
         self.background(self.player.front)
         self.custom_draw(self.player)
         self.frontground()
+        self.draw_mini_world()
         pygame.display.set_caption('FPS: ' + str(int(self.clock.get_fps())))
         pygame.display.update()
         self.clock.tick()
@@ -336,14 +338,34 @@ class UAV_Env(Env):
             self.world.blit(wall_column, wall_pos)
             rad += DELTA_ANGLE
 
+    def draw_mini_world(self):
+        self.mini_world.fill('black')
+        x0, y0 = self.player.rect.center
+        x0, y0 = x0 // TILESIZE * MINI_SCALE, y0 // TILESIZE * MINI_SCALE
+        x1, y1 = self.zombie.fx // TILESIZE * MINI_SCALE, self.zombie.fy // TILESIZE * MINI_SCALE
+        pygame.draw.circle(self.mini_world, 'red', (x0, y0), MINI_SCALE)
+        pygame.draw.circle(self.mini_world, 'white', (x1, y1), MINI_SCALE)
+        for tile in self.visible_sprites:
+            x, y = tile.rect.center
+            x, y = x // TILESIZE * MINI_SCALE, y // TILESIZE * MINI_SCALE
+            if x == x0 and y == y0: continue
+            if x == x1 and y == y1: continue
+            pygame.draw.rect(self.mini_world, 'yellow', (x, y, MINI_SCALE, MINI_SCALE))
+        for i in range(len(self.path) - 1):
+            c0, r0 = self.path[i]
+            c1, r1 = self.path[i+1]
+            pygame.draw.line(self.mini_world, 'white', (r0 * MINI_SCALE, c0 * MINI_SCALE), (r1 * MINI_SCALE, c1 * MINI_SCALE))
+
+        self.world.blit(self.mini_world, (0, 0))
+
     def frontground(self):
         for zombie in self.zombies:
             zombie.draw_sprites(self.player)
 
     def reset(self):
-        # r, c = self.random_place_target(self.zombie)
-        # self.replace_player(self.player, r, c, self.goal)
-        self.create_map()
+        r, c = self.random_place_target(self.zombie)
+        self.replace_player(self.player, r, c, self.goal)
+        # self.create_map()
         self.steps = 0
         self.last_state = self.get_state()
         return self.get_state()

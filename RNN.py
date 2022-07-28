@@ -34,30 +34,32 @@ class RNN(nn.Module):
 if __name__ == '__main__':
     rand = torch.rand(1, 20, 7)
     # 5 is the number of sample, 20: sequence length, 7: feature dimension
-    rnn = RNN(7, 64, 1, 4)
+    rnn = RNN(7, 64, 1, 5)
     # out = rnn(rand)[:, -1, :] # (5, 20, 4) 5: num of sample/ batch size; 20, each operation output; 4: possibility distributions of 4 outcomes
     # print(out)
-    train_data = read_data('float') #CustomDataset(X_train, y_train)
+    train_data = read_data() #CustomDataset(X_train, y_train)
     train_loader = DataLoader(dataset=train_data, batch_size=4, shuffle=True)
     loss_function = nn.CrossEntropyLoss()
     optimizer = optim.SGD(rnn.parameters(), lr=0.003)   
-    for epoch in range(1):  # again, normally you would NOT do 300 epochs, it is toy data
+    num_epochs = 10
+    for epoch in range(num_epochs):  # again, normally you would NOT do 300 epochs, it is toy data
+        correct = 0
         for X, y in train_loader:
-            # Step 1. Remember that Pytorch accumulates gradients.
-            # We need to clear them out before each instance
-            # print(X.size())
+            # Step 1. remove gradients.
             rnn.zero_grad()
-            # Step 2. Get our inputs ready for the network, that is, turn them into Tensors of word indices.
-
-            # Step 3. Run our forward pass.
+            # Step 2. Run forward pass.
             y_predict = rnn(X)
-
-            # Step 4. Compute the loss, gradients, and update the parameters by
-            #  calling optimizer.step()
+            # Step 3. Compute the loss, gradients, and update the parameters by calling optimizer.step()
             loss = loss_function(y_predict, y)
             loss.backward()
             optimizer.step()
-    X_test = train_data[0][0]
-    X_test = X_test[None, :] # model needs a dummy dimension(as batch size)
-    y_pre = rnn(X_test)
-    print(y_pre)
+            pred_label = torch.argmax(y_predict, dim=0)
+            label = torch.argmax(y, dim=0)
+            correct += int((pred_label == label).float().sum())
+        accuracy = 100 * correct / len(train_data)
+        print("Epoch {}/{}, Loss: {:.3f}, Accuracy: {:.3f}".format(epoch+1, num_epochs, float(loss), accuracy))
+    torch.save(rnn, 'rnn_model.pt')
+    # X_test = train_data[0][0]
+    # X_test = X_test[None, :] # model needs a dummy dimension(as batch size)
+    # y_pre = rnn(X_test)
+    # print(y_pre)

@@ -16,7 +16,7 @@ class CustomDataset(Dataset):
     
 def read_data(y_type='float'):
     X_train, y_train = [], []
-    for idx in range(4):
+    for idx in range(5):
         for num in range(1):
             file_name = 'raw_data/goal' + str(idx) + '-' + str(num) + '.csv'
             file = open(file_name, 'r')
@@ -26,7 +26,7 @@ def read_data(y_type='float'):
             # reading raw data
             for row in data:
                 states_action.append(row[:7])
-                g = [0] * 4
+                g = [0] * 5
                 g[int(row[7])] = 1
                 goal.append(g)
             # sample and assemble data
