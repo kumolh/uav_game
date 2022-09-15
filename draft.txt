@@ -1,0 +1,12 @@
+cross entropy:
+KL divergence:
+
+how to validate the data generation:
+1. the total timestamp for convergence(validated within the training process) which is affected by a. the algorithm; b. the states variables; c. the reward function;
+  --> reward function too general, slow/ too specific, lost the sense of generality and not possible for other environment
+2. the success rate(validated on the test dataset) 
+    overfit if the reward too specific? 
+    test dataset should made by manual input.
+
+how to improve the data generation process?
+1. actually there is 

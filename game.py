@@ -5,7 +5,7 @@ from torch.nn import Transformer
 
 def main():
     env = UAV_Env(goal=-1, record=False)
-    obs = env.reset()
+    # obs = env.reset()
     while True:
         action = env.player.input()
         obs, reward, done, info = env.step(action)
