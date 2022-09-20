@@ -9,6 +9,7 @@ class Zombie(pygame.sprite.Sprite):
         super().__init__(groups)
         self.front = 0
         self.zombie = self.load_img()
+        
         self.type = type
         self.image = pygame.image.load('img/zombie/zombie' + str(type) + '.png').convert_alpha()
         self.rect = self.image.get_rect(topleft=pos)
@@ -26,6 +27,9 @@ class Zombie(pygame.sprite.Sprite):
     def load_img(self):
         img = pygame.image.load(
             'img/zombie/zombie_n_skeleton4.png').convert_alpha()
+        img1 = pygame.image.load('img/zombie/man.png').convert_alpha()
+        ret = [[[img1] * 4 for _ in range(4)] for _ in range(2)]
+        return ret
         sprites = [[], []]
         for i in range(3):
             xx = i * 32

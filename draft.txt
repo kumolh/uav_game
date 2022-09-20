@@ -9,4 +9,15 @@ how to validate the data generation:
     test dataset should made by manual input.
 
 how to improve the data generation process?
-1. actually there is 
+1. actually there is no need to save the data in a local file
+2. data collection: initialization is of great importance? --> ask different particicants to record their operations.
+
+
+
+Environment assumption:
+    constant height + flat ground/ 
+     ---> discussion about the simplification of the environment and the availble information, how to get the information from
+     the environment/ how these information is obtained in the simulation. For the purpose of data generation, the only thing
+     we need is to get the data, we don't real care about if this information has access in the real world
+     On the contrary, if RL is used for assertive control, all the observations/states should be available with the help of 
+     different sensors.

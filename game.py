@@ -2,6 +2,7 @@ from uav_game import *
 from RNN import RNN
 from transformer import *
 from torch.nn import Transformer
+from settings import save_demo
 
 def main():
     env = UAV_Env(goal=-1, record=False)
@@ -17,3 +18,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    

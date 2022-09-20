@@ -1,5 +1,6 @@
 import math
 from Maps import *
+import numpy as np
 # game setup
 WIDTH    = 600	
 HEIGTH   = 600
@@ -23,7 +24,7 @@ TEXTURE_WIDTH = 1200
 TEXTURE_HEIGHT = 1200
 TEXTURE_SCALE = TEXTURE_WIDTH // TILESIZE
 
-WORLD_MAP = WORLD_OBSTACLE #WORLD_OPEN #
+WORLD_MAP = WORLD_OPEN #WORLD_OBSTACLE # #
 
 MAPY = TILE_V = len(WORLD_MAP)
 MAPX = TILE_H = len(WORLD_MAP[0])
@@ -42,3 +43,11 @@ for i, row in enumerate(WORLD_MAP):
 MAX_MEMORY = 100000
 LR = 0.001
 BATCH_SIZE = 3000
+
+def save_demo(name, record, memory, goal):
+    if not record: return
+    file = open(name + '.csv', 'w')
+    for tuple in memory:
+        lst = list(tuple) + [goal] 
+        np.savetxt(file, [lst], delimiter=', ')
+    file.close()

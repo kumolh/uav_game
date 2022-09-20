@@ -19,7 +19,7 @@ class UAV_Env(Env):
         self.world = pygame.display.set_mode((WIDTH * 2, HEIGTH))
         self.mini_world = pygame.Surface((MAPX * MINI_SCALE, MAPY * MINI_SCALE))
         self.clock = pygame.time.Clock()
-        self.goal = goal
+        self.goal = goal # 0: 
         self.record = record
         self.pred_model = torch.load('rnn_model.pt')
         self.steps = 0
@@ -46,6 +46,7 @@ class UAV_Env(Env):
             goal = torch.argmax(prediction)
             print('Guessed goal is: {}'.format(int(goal)))
         if self.goal == 0 or self.goal == 4:
+            ######   can only move forward, turn around #######
             move = action + 9# each time the uav must forward a step
             self.player.direction.y = -1
             if action == 1:
@@ -54,15 +55,31 @@ class UAV_Env(Env):
             elif action == 2:
                 self.player.front += 2
                 self.player.front %= 360
+
+            #####   also able to move left/right/back ####
+            # move = action
+            # r = action % 3
+            # if r == 1: r = -1
+            # elif r == 2: r = 1
+            # h = (action // 3) % 3 - 1
+            # if h == 1: h = -1
+            # elif h == 2: h = 1
+            # v = (action // 9) % 3 - 1
+            # if v == 1: v = -1
+            # elif v == 2: v = 1
+            # self.player.direction.x = h
+            # self.player.direction.y = v
+            # self.player.front = (self.player.front + 2 * r) % 360
+
         elif self.goal == -1:
             move = action #self.player.input()
         else:
             if self.goal == 1:
-                horizontal, vertical, rotate = self.get_follow_move(128, hori=1)
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=1) # anti clock
             elif self.goal == 2:
-                horizontal, vertical, rotate = self.get_follow_move(128, hori=-1)
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=-1) # clock
             elif self.goal == 3:
-                horizontal, vertical, rotate = self.get_follow_move(128, hori=0)
+                horizontal, vertical, rotate = self.get_follow_move(128, hori=0) # follow
             v = h = r = 0
             if vertical == -1: v = 1 #moving up
             elif vertical == 1: v = 2 # moving down
@@ -76,8 +93,8 @@ class UAV_Env(Env):
             self.player.front += rotate
             self.player.front %= 360
 
-        if self.goal >= 0: 
-            self.zombie.move()
+        # if self.goal >= 0: 
+        self.zombie.move()
 
         self.player.move(self.player.speed)
         state = self.get_state()
@@ -103,19 +120,20 @@ class UAV_Env(Env):
         return np.array(state, dtype=np.float32)
     
     def get_reward(self, state):
-        def linear(location):
-            # abs(location) 0 - 30: + ; 30 - 180: -;
-            delta = location if location < 5 else 10 - location
-            return 10 * (5 - delta)
-        
-        def gaussian(distance):
-            return 100 * np.exp(-0.001*(distance - 64) ** 2)
-
-        reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
+        reward = 0
+        #### reward function ########
+        # def linear(location):
+        #     # abs(location) 0 - 30: + ; 30 - 180: -;
+        #     delta = location if location < 5 else 10 - location
+        #     return 10 * (5 - delta)
+        # def gaussian(distance):
+        #     return 100 * np.exp(-0.001*(distance - 64) ** 2)
+        # reward = linear(state[5]) - linear(self.last_state[5]) + gaussian(state[4]) - gaussian(self.last_state[4])
+        ############################
         done = False
         self.player.rewards += reward
         self.last_state = state
-        collision_wall = not(1.5 * TILESIZE < state[0] * 200 < (TILE_H - 1.5) * TILESIZE and 1.5 * TILESIZE < state[1] * 200 < (TILE_V - 1.5) * TILESIZE)
+        collision_wall = not(2.0 * TILESIZE < state[0] * 200 < (TILE_H - 2) * TILESIZE and 2.0 * TILESIZE < state[1] * 200 < (TILE_V - 2) * TILESIZE)
         collision_target = state[4] * 200 < TILESIZE
 
         if collision_wall or collision_target:
@@ -259,6 +277,8 @@ class UAV_Env(Env):
     def render(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT or event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                if self.goal == -1 and self.record:
+                    save_demo('raw_data/goal{}-{}-manual'.format(-1, 4), True, self.memory, self.goal)
                 pygame.quit()
                 self.running = False
                 sys.exit()
@@ -368,7 +388,7 @@ class UAV_Env(Env):
         # self.create_map()
         self.steps = 0
         self.last_state = self.get_state()
-        return self.get_state()
+        return self.last_state
 
     def ray_casting(self, player, rad):
         # return the distance that the ray can go

@@ -14,10 +14,10 @@ class CustomDataset(Dataset):
     def __len__(self):
         return len(self.x)
     
-def read_data(y_type='float'):
+def read_data(file_num, y_type='float'):
     X_train, y_train = [], []
     for idx in range(5):
-        for num in range(1):
+        for num in range(file_num):
             file_name = 'raw_data/goal' + str(idx) + '-' + str(num) + '.csv'
             file = open(file_name, 'r')
             data = np.loadtxt(file, dtype='float', delimiter=', ')
