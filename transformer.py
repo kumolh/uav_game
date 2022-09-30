@@ -48,9 +48,8 @@ if __name__ == '__main__':
     # 4: batch size, 20: sequence length, 7: feature dimension, 5: output dimension
     transformer = TransformerModel(4, 7, 512, 5)
     # transformer = torch.load('transformer_model.pt')
-    # print(summary(transformer))
+    print(summary(transformer))
     # 
-
 
     # X_train, y_train = read_data()
     # print(np.shape(X_train))
@@ -58,18 +57,21 @@ if __name__ == '__main__':
     # y_train = torch.from_numpy(y_train).float()
 
 
-    full_dataset = read_data(35) #CustomDataset(X_train, y_train)
+    full_dataset = read_data(2) #CustomDataset(X_train, y_train)
     train_size = int(0.8 * len(full_dataset))
     test_size = len(full_dataset) - train_size
     train_data, test_data = torch.utils.data.random_split(full_dataset, [train_size, test_size])
     train_loader = DataLoader(dataset=train_data, batch_size=4, shuffle=True)
+    test_loader = DataLoader(dataset=test_data, batch_size=4, shuffle=True)
     # out = transformer(X_train)[:, -1, :] #X_train[0]
     loss_function = nn.CrossEntropyLoss()
     optimizer = optim.SGD(transformer.parameters(), lr=0.003)   
     # history = model.fit(X_train, Y_train, validation_data=(X_test, Y_test), batch_size=32, epochs=10, verbose=1)
     num_epochs = 3
-    accuracy_history = []
-    loss_history = []
+    train_accuracy = []
+    train_loss = []
+    test_accuracy = []
+    test_loss = []
     for epoch in range(num_epochs):  #
         correct = 0
         for i, (X, y) in enumerate(train_loader):
@@ -84,13 +86,27 @@ if __name__ == '__main__':
             pred_label = torch.argmax(y_predict, dim=0)
             label = torch.argmax(y, dim=0)
             correct += int((pred_label == label).float().sum())
-        accuracy = 100 * correct / len(train_data)
-        accuracy_history.append(accuracy)
-        loss_history.append(loss)
-        print("Epoch {}/{}, Loss: {:.3f}, Accuracy: {:.3f}".format(epoch+1, num_epochs, float(loss), accuracy))
+        train_accuracy.append(100 * correct / len(train_data))
+        train_loss.append(loss)
+        
+        correct = 0
+        for i, (X, y) in enumerate(test_loader):
+            # Step 1. Clear former gradients.
+            transformer.zero_grad()
+            # Step 2. Run forward pass.
+            y_predict = transformer(X)
+            # Step 3. Compute the loss, gradients, and update the parameters by calling optimizer.step()
+            loss = loss_function(y_predict, y)
+            pred_label = torch.argmax(y_predict, dim=0)
+            label = torch.argmax(y, dim=0)
+            correct += int((pred_label == label).float().sum())
+        test_accuracy.append(100 * correct / len(test_data))
+        test_loss.append(loss)
+        print("Epoch {}/{}, Train_Loss: {:.3f}, Train_Accuracy: {:.3f}, Test_Loss: {:.3f}, Test_Accuracy: {:.3f}"\
+            .format(epoch+1, num_epochs, float(train_loss[-1]), train_accuracy[-1], float(test_loss[-1]), test_accuracy[-1]))
         ## plot ##
         ## num of parameters ##
-    draw(accuracy_history, 'accuracy')
+    draw(train_accuracy, 'accuracy')
     torch.save(transformer, 'transformer_model_1.pt')
 
     # X_test = train_data[0][0]

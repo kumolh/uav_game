@@ -1,12 +1,16 @@
+from audioop import mul
 from turtle import color
 from PIL import Image
 from PIL import ImageFilter
 from PIL import ImageDraw
 from matplotlib import cm
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D  
 import matplotlib.pyplot as plt
+from scipy.stats import multivariate_normal
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
+from mpl_toolkits.mplot3d import Axes3D
+import tensorflow_probability as tfp
+tfd = tfp.distributions
 
 def view_reward():
     img = Image.open(r'./assets/view.png')
@@ -57,6 +61,34 @@ def icon_compress(path, name):
     img.thumbnail((100, 70))
     img.save(name)
 
+
+def multi_gaussian():
+    pi = np.array([0.2, 0.3, 0.5, 0.7], dtype=np.float32)
+    mu = np.array([[10, 20],
+                [20, 10],
+                [30, 30],
+                [15, 15]], dtype=np.float32)
+    sigma = np.array([[1, 1],
+                    [2, 2],
+                    [3, 3],
+                    [4, 4]], dtype=np.float32)
+    mvgmm = tfd.MixtureSameFamily(
+        mixture_distribution=tfd.Categorical(probs=pi),
+        components_distribution=tfd.MultivariateNormalDiag(
+            loc=mu,
+            scale_diag=sigma)
+    )
+    x = np.linspace(5, 35, 100)
+    y = np.linspace(5, 35, 100)
+    x, y = np.meshgrid(x, y)
+    data = np.stack((x.flatten(), y.flatten()), axis=1)
+    prob = mvgmm.prob(data).numpy()
+    ax = plt.axes(projection='3d')
+    plt.contour(x, y, prob.reshape((100, 100)));
+    ax.plot_surface(x, y, prob.reshape((100,100)), cmap='twilight_shifted')
+    plt.show()
+
 if __name__ == '__main__':
     # icon_compress('img/zombie/fox.png', 'fox.png')
-    location_reward()
+    # location_reward()
+    multi_gaussian()

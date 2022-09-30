@@ -1,0 +1,14 @@
+gym==0.21.0
+ipython==8.5.0
+keras==2.8.0
+matplotlib==3.3.3
+numpy==1.21.2
+Pillow==9.2.0
+pygame==2.1.0
+scipy==1.7.3
+stable_baselines3==1.5.0
+tensorflow==2.10.0
+tensorflow_macos==2.8.0
+tensorflow_probability==0.16.0
+torch==1.13.0.dev20220626
+torchinfo==1.7.0
